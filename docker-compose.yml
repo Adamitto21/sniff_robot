@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  sniff_core:
+    build: .
+    container_name: sniff_ros2
+    network_mode: host
+    ipc: host
+    privileged: true # Krytyczne dla robota: daje dostęp do portów USB, I2C, GPIO Jetsona
+    # runtime: nvidia # Zostawiamy zakomentowane, dopóki nie dodasz kamery głębi
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+    volumes:
+      # Mapowanie GUI (np. do odpalenia RViz2 na ekranie podpiętym do Jetsona)
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Główny katalog z Twoim kodem: modyfikujesz na Jetsonie, odpala się w kontenerze
+      - ./ros2_ws:/ros2_ws
+    # devices:
+      # - /dev/ttyUSB0:/dev/ttyUSB0 # Przygotowane pod lidar
+      # - /dev/ttyUSB1:/dev/ttyUSB1 # Przygotowane pod Waveshare UGV02
+      # - /dev/video0:/dev/video0   # Przygotowane pod kamerę
+    command: /bin/bash
+    tty: true
+    stdin_open: true
