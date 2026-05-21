@@ -16,9 +16,11 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       # Główny katalog z Twoim kodem: modyfikujesz na Jetsonie, odpala się w kontenerze
       - ./ros2_ws:/ros2_ws
-    # devices:
-      # - /dev/ttyUSB0:/dev/ttyUSB0 # Przygotowane pod lidar
-      # - /dev/ttyUSB1:/dev/ttyUSB1 # Przygotowane pod Waveshare UGV02
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0 # Przygotowane pod lidar
+      - /dev/ttyUSB1:/dev/ttyUSB1 # Przygotowane pod Waveshare UGV02
+      - /dev/ttyCH343USB0:/dev/ttyCH343USB0
+      - /dev/ttyTHS1:/dev/ttyTHS1
       # - /dev/video0:/dev/video0   # Przygotowane pod kamerę
     command: /bin/bash
     tty: true
