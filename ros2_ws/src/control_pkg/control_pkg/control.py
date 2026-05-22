@@ -16,12 +16,12 @@ class ControlNode(Node):
         elif cmd_str == 's':
             msg.linear.x = -0.5
         elif cmd_str == 'a':
-            msg.linear.z = 1.0
+            msg.angular.z = 1.0
         elif cmd_str == 'd':
-            msg.linear.z = -1.0
+            msg.angular.z = -1.0
         elif cmd_str == 'x':
             msg.linear.z = 0.0
-            msg.linear.z = 0.0
+            msg.angular.z = 0.0
         else:
             self.get_logger().warning('Nieznana komenda!')
             return
