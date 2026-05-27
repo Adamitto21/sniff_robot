@@ -9,7 +9,8 @@ services:
     privileged: true # Krytyczne dla robota: daje dostęp do portów USB, I2C, GPIO Jetsona
     # runtime: nvidia # Zostawiamy zakomentowane, dopóki nie dodasz kamery głębi
     environment:
-      - DISPLAY=${DISPLAY}
+      - DISPLAY=localhost:10.0
+      # - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
     volumes:
       # Mapowanie GUI (np. do odpalenia RViz2 na ekranie podpiętym do Jetsona)
