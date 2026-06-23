@@ -9,7 +9,7 @@ services:
     privileged: true # Krytyczne dla robota: daje dostęp do portów USB, I2C, GPIO Jetsona
     # runtime: nvidia # Zostawiamy zakomentowane, dopóki nie dodasz kamery głębi
     environment:
-      - DISPLAY=localhost:10.0
+      - DISPLAY=:1
       # - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
     volumes:
@@ -17,12 +17,7 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       # Główny katalog z Twoim kodem: modyfikujesz na Jetsonie, odpala się w kontenerze
       - ./ros2_ws:/ros2_ws
-    devices:
-      - /dev/ttyUSB0:/dev/ttyUSB0 # Przygotowane pod lidar
-      - /dev/ttyUSB1:/dev/ttyUSB1 # Przygotowane pod Waveshare UGV02
-      - /dev/ttyCH343USB0:/dev/ttyCH343USB0
-      - /dev/ttyTHS1:/dev/ttyTHS1
-      # - /dev/video0:/dev/video0   # Przygotowane pod kamerę
+      - /dev:/dev
     command: /bin/bash
     tty: true
     stdin_open: true

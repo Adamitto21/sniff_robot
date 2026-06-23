@@ -12,8 +12,12 @@ RUN apt-get update && apt-get install -y \
     ros-humble-rqt-common-plugins \
     ros-humble-rplidar-ros \
     ros-humble-slam-toolbox \
+    ros-humble-vision-msgs \
+    ros-humble-cv-bridge \
     python3-serial \
     && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install depthai==2.24.0.0
 
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
 RUN echo "source /ros2_ws/install/setup.bash" >> /root/.bashrc
