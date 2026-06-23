@@ -16,6 +16,7 @@ services:
     volumes:
       # Mapowanie GUI (np. do odpalenia RViz2 na ekranie podpiętym do Jetsona)
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ~/.Xauthority:/root/.Xauthority:rw
       # Główny katalog z Twoim kodem: modyfikujesz na Jetsonie, odpala się w kontenerze
       - ./ros2_ws:/ros2_ws
     devices:
