@@ -3,7 +3,7 @@ version: '3.8'
 services:
   sniff_core:
     build: .
-    container_name: sniff_ros2
+    container_name: sniff
     network_mode: host
     ipc: host
     privileged: true # Krytyczne dla robota: daje dostęp do portów USB, I2C, GPIO Jetsona
