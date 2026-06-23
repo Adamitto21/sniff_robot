@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     ros-humble-rqt-common-plugins \
     ros-humble-rplidar-ros \
     ros-humble-slam-toolbox \
+    ros-humble-teleop-twist-keyboard \
     python3-serial \
     && rm -rf /var/lib/apt/lists/*
 
