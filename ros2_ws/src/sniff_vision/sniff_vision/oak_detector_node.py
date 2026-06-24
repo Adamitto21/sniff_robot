@@ -85,3 +85,12 @@ class OakDetectorNode(Node):
 
         det_array = Detection2DArray()
         det_array.header.stamp = self.get_clock().now().to_msg()
+
+# def main(args=None):
+#     rclpy.init(args=args)
+#     node = OakDetectorNode() 
+#     rclpy.spin(node)
+#     rclpy.shutdown()
+
+# if __name__ == "__main__":
+#     main()
