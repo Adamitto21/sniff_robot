@@ -61,6 +61,9 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(
                     os.path.join(slam_toolbox_share, 'launch',
                                  'online_async_launch.py')),
+                launch_arguments={
+                    'slam_params_file': '/ros2_ws/slam_params.yaml',
+                }.items()
             )
         ]
     )
