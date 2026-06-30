@@ -1,6 +1,8 @@
+import os
+from glob import glob
 from setuptools import find_packages, setup
 
-package_name = 'node_test'
+package_name = 'platform_control'
 
 setup(
     name=package_name,
@@ -10,10 +12,11 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', 'platform_control', 'launch'), glob('launch/*.launch.py'))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='adam',
+    maintainer='root',
     maintainer_email='adam.lamecki04@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
@@ -24,7 +27,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'vel_subscriber = ugv_controller.node:main'
+            'platform_driver = platform_control.platform_driver:main',
+            'keyboard = platform_control.keyboard:main'
         ],
     },
 )

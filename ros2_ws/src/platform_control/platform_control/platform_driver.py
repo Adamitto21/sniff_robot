@@ -4,10 +4,10 @@ from geometry_msgs.msg import Twist
 import serial
 import json
 
-class NodeClass(Node):
+class PlatformDriver(Node):
     def __init__(self):
-        super().__init__('vel_subscriber')
-        self.get_logger().info('Node uruchomiony')
+        super().__init__('platform_driver')
+        self.get_logger().info('Node platform_driver uruchomiony')
         self.serial_port = '/dev/ttyCH343USB0'
         self.baud_rate = 115200
 
@@ -55,12 +55,12 @@ class NodeClass(Node):
     
 def main(args=None):
     rclpy.init(args=args)
-    node = NodeClass()
+    node = PlatformDriver()
 
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.get_logger().info(f'Przerwano z klawy')
+        node.get_logger().info(f'Przerwano z klawiatury')
     finally:
         node.stop_platform()
         node.destroy_node()

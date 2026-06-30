@@ -2,10 +2,10 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 
-class ControlNode(Node):
+class KeyboardNode(Node):
     def __init__(self):
-        super().__init__('control_node')
-        self.get_logger().info('Utworzono node "ControlNode"')
+        super().__init__('Keyboard')
+        self.get_logger().info('Utworzono node "Keyboard"')
         self.publisher = self.create_publisher(Twist, 'cmd_vel', 10)
 
     def move(self, cmd_str):
@@ -32,7 +32,7 @@ class ControlNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ControlNode()
+    node = KeyboardNode()
 
     try:
         while rclpy.ok():
