@@ -1,0 +1,19 @@
+services:
+  sniff_core:
+    build: .
+    container_name: sniff_robot
+    network_mode: host
+    ipc: host
+    privileged: true
+    runtime: nvidia
+    environment:
+      - ROS_DOMAIN_ID=0
+      - ROS_LOCALHOST_ONLY=0
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - ../../ros2_ws:/ros2_ws
+      - /dev:/dev
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    command: /bin/bash
+    tty: true
+    stdin_open: true
