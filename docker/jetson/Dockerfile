@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y \
     iputils-ping \
     net-tools \
     usbutils \
+    ros-humble-rviz2 \
+    ros-humble-rqt \
+    ros-humble-rqt-common-plugins \
     ros-humble-rplidar-ros \
     ros-humble-slam-toolbox \
     ros-humble-vision-msgs \
