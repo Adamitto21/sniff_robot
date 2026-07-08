@@ -18,4 +18,9 @@ def generate_launch_description():
             executable = 'rqt_graph',
             output = 'screen'
         )
+        Node(
+            package = 'platform_control',
+            executable = 'platform_brain',
+            output = 'screen'
+        )
     ])
