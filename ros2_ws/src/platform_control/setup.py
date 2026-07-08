@@ -18,7 +18,7 @@ setup(
     zip_safe=True,
     maintainer='root',
     maintainer_email='adam.lamecki04@gmail.com',
-    description='TODO: Package description',
+    description='Paczka do testowania platformy',
     license='TODO: License declaration',
     extras_require={
         'test': [
