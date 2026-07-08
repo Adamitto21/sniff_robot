@@ -28,7 +28,8 @@ setup(
     entry_points={
         'console_scripts': [
             'platform_driver = platform_control.platform_driver:main',
-            'keyboard = platform_control.keyboard:main'
+            'keyboard = platform_control.keyboard:main',
+            'odometry = platform_control.platform_brain:main'
         ],
     },
 )
