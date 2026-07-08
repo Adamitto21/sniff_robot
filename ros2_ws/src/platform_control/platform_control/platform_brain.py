@@ -5,11 +5,11 @@ import serial
 import json
 import math
 import threading
-import os
+import time
 from geometry_msgs.msg import Twist, TransformStamped
 from nav_msgs.msg import Odometry
 from tf2_ros import TransformBroadcaster
-from std_msgs.msg import Float32
+
 
 def euler_to_quaternion(roll, pitch, yaw):
     qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
@@ -18,100 +18,157 @@ def euler_to_quaternion(roll, pitch, yaw):
     qw = math.cos(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
     return [qx, qy, qz, qw]
 
+
 class UnifiedUgvNode(Node):
     def __init__(self):
         super().__init__('unified_ugv_node')
-        
-        self.wheel_base = 0.20  # Odległość między kołami (L) w metrach
+
+        # --- Parametry (kalibracja bez rebuildu: --ros-args -p nazwa:=wartosc) ---
+        self.declare_parameter('serial_port', '/dev/ttyCH343USB0')
+        self.declare_parameter('baudrate', 115200)
+        # Rozstaw kol. Firmware UGV02 (mainType==2) uzywa TRACK_WIDTH=0.172 m.
+        # Skid-steer 6x4 slizga sie na skrecie -> efektywny rozstaw bywa WIEKSZY.
+        # Robot na mapie skreca za malo/za duzo -> koryguj TEN parametr.
+        self.declare_parameter('track_width', 0.172)
+        # Skala enkodera: z testu 1 obrotu -> 0.251 m / 24 jedn. = 0.0105 m/jedn.
+        # Zmierzone zgrubnie (+-1 jedn. ~ +-4%). Robot jedzie za daleko/za blisko
+        # w LINII PROSTEJ -> koryguj TEN parametr.
+        self.declare_parameter('meters_per_tick', 0.0105)
+        # Max realny przyrost licznika na 1 ramce (odrzucanie glitchy / wrap-around).
+        self.declare_parameter('max_tick_delta', 100)
+
+        self.serial_port = self.get_parameter('serial_port').value
+        baudrate = self.get_parameter('baudrate').value
+        self.track_width = self.get_parameter('track_width').value
+        self.mpt = self.get_parameter('meters_per_tick').value
+        self.max_tick_delta = self.get_parameter('max_tick_delta').value
+
+        # --- Stan odometrii ---
         self.x = 0.0
         self.y = 0.0
         self.th = 0.0
-        self.last_time = self.get_clock().now()
+        self.odl_prev = None
+        self.odr_prev = None
 
-        serial_port = '/dev/ttyCH343USB0'
+        # --- Port szeregowy ---
         try:
-            self.ser = serial.Serial(serial_port, 115200, timeout=1)
-            self.get_logger().info(f"Połączono z mikrokontrolerem na porcie: {serial_port}")
+            self.ser = serial.Serial(self.serial_port, baudrate, timeout=1)
+            # ESP32 resetuje sie przy otwarciu portu CH343 (DTR/RTS -> EN).
+            # Przez ~2 s bootuje i gubi komendy -> czekamy przed pierwsza komenda.
+            time.sleep(2.0)
+            self.ser.reset_input_buffer()
+            self.get_logger().info(f"Polaczono z ESP32 na porcie: {self.serial_port}")
         except Exception as e:
-            self.get_logger().error(f"Błąd otwarcia portu szeregowego: {e}")
+            self.get_logger().error(f"Blad otwarcia portu szeregowego: {e}")
             raise e
 
+        # --- ROS I/O ---
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
-        self.voltage_pub = self.create_publisher(Float32, 'voltage', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
         self.cmd_vel_sub = self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 10)
 
-        # 6. URUCHOMIENIE WĄTKU ODBIORU (UART Read Loop)
+        # Feedback WYLACZONY domyslnie (baseFeedbackFlow=0). Wlaczamy strumien
+        # T:1001 i ponawiamy co 5 s (przezywa reset ESP32).
+        self.enable_feedback_stream()
+        self.create_timer(5.0, self.enable_feedback_stream)
+
+        # --- Watek odczytu UART ---
         self.running = True
         self.read_thread = threading.Thread(target=self.uart_receive_loop, daemon=True)
         self.read_thread.start()
 
+    def _send(self, obj):
+        try:
+            self.ser.write((json.dumps(obj) + "\n").encode('utf-8'))
+        except Exception as e:
+            self.get_logger().warn(f"Nie udalo sie wyslac przez UART: {e}")
+
+    def enable_feedback_stream(self):
+        # CMD_BASE_FEEDBACK_FLOW = 131, cmd=1 -> ciagly strumien ramek T:1001
+        self._send({'T': 131, 'cmd': 1})
+
     def cmd_vel_callback(self, msg):
-        """Callback odbierający prędkość z ROS i wysyłający ją do ESP32."""
         linear_velocity = msg.linear.x
         angular_velocity = msg.angular.z
 
-        # Filtr progowy dla małych prędkości obrotowych (z oryginalnego kodu Waveshare)
+        # Filtr progowy dla malych predkosci obrotowych (z kodu Waveshare)
         if linear_velocity == 0:
             if 0 < angular_velocity < 0.2:
                 angular_velocity = 0.2
             elif -0.2 < angular_velocity < 0:
                 angular_velocity = -0.2
 
-        command_data = json.dumps({'T': '13', 'X': linear_velocity, 'Z': angular_velocity}) + "\n"
-        try:
-            self.ser.write(command_data.encode('utf-8'))
-        except Exception as e:
-            self.get_logger().warn(f"Nie udało się wysłać cmd_vel przez UART: {e}")
+        # T:13 = CMD_ROS_CTRL (int). X=liniowa [m/s], Z=katowa [rad/s]
+        self._send({'T': 13, 'X': linear_velocity, 'Z': angular_velocity})
 
     def uart_receive_loop(self):
-        """Pętla w tle czytająca dane telemetryczne z enkoderów."""
         while self.running and rclpy.ok():
             try:
                 line = self.ser.readline().decode('utf-8').strip()
                 if line:
                     data = json.loads(line)
-                    # Sprawdzenie typu wiadomości (1001 = telemetria sprzętowa)
-                    if data.get("T") == 1001:
+                    if data.get("T") == 1001:   # FEEDBACK_BASE_INFO
                         self.update_and_publish_odometry(data)
-                        self.publish_voltage(data)
             except json.JSONDecodeError:
-                pass  # Ignoruj niepełne ramki szeregowe
+                pass  # niepelna ramka szeregowa
             except Exception as e:
                 if self.running:
-                    self.get_logger().warn(f"Błąd w pętli UART: {e}")
+                    self.get_logger().warn(f"Blad w petli UART: {e}")
 
     def update_and_publish_odometry(self, data):
-        """Wylicza kinematykę i publikuje dane odometrii oraz TF."""
-        current_time = self.get_clock().now()
-        dt = (current_time - self.last_time).nanoseconds / 1e9
-        
-        if dt <= 0:
+        # Enkodery to LICZNIKI AKUMULOWANE (odl=lewy, odr=prawy). Liczymy przyrost.
+        try:
+            odl = int(data["odl"])
+            odr = int(data["odr"])
+        except (KeyError, ValueError, TypeError):
             return
 
-        # Pobieranie prędkości kół (zakładamy, że odl/odr to prędkość przetworzona na cm/s)
-        v_left = float(data.get("odl", 0)) / 100.0
-        v_right = float(data.get("odr", 0)) / 100.0
+        current_time = self.get_clock().now()
 
-        # Model kinematyczny robota o napędzie różnicowym
+        # Pierwsza ramka: tylko zapamietaj punkt odniesienia
+        if self.odl_prev is None:
+            self.odl_prev = odl
+            self.odr_prev = odr
+            return
+
+        delta_l_ticks = odl - self.odl_prev
+        delta_r_ticks = odr - self.odr_prev
+
+        # Odrzuc glitche / wrap-around licznika (nierealny skok w jednej ramce)
+        if abs(delta_l_ticks) > self.max_tick_delta or abs(delta_r_ticks) > self.max_tick_delta:
+            self.odl_prev = odl
+            self.odr_prev = odr
+            return
+
+        self.odl_prev = odl
+        self.odr_prev = odr
+
+        # Przyrosty dystansu kol [m]. Znak: przod = licznik rosnie -> dodatni dystans.
+        d_left = delta_l_ticks * self.mpt
+        d_right = delta_r_ticks * self.mpt
+
+        # Kinematyka rozniczkowa
+        d_center = (d_left + d_right) / 2.0
+        d_theta = (d_right - d_left) / self.track_width
+
+        # Integracja pozycji (metoda punktu srodkowego - dokladniejsza na luku)
+        self.x += d_center * math.cos(self.th + d_theta / 2.0)
+        self.y += d_center * math.sin(self.th + d_theta / 2.0)
+        self.th += d_theta
+        self.th = math.atan2(math.sin(self.th), math.cos(self.th))  # normalizacja (-pi, pi]
+
+        # Predkosc do twist: z realnego pomiaru L/R (m/s), nie z rozniczkowania licznika
+        v_left = float(data.get("L", 0.0))
+        v_right = float(data.get("R", 0.0))
         v = (v_right + v_left) / 2.0
-        w = (v_right - v_left) / self.wheel_base
+        w = (v_right - v_left) / self.track_width
 
-        # Integracja po czasie (obliczanie nowej pozycji)
-        delta_x = (v * math.cos(self.th)) * dt
-        delta_y = (v * math.sin(self.th)) * dt
-        delta_th = w * dt
-
-        self.x += delta_x
-        self.y += delta_y
-        self.th += delta_th
-
-        # Konwersja kąta orientacji na kwaternion
         q = euler_to_quaternion(0, 0, self.th)
+        stamp = current_time.to_msg()
 
-        # 1. Publikacja transformacji układów współrzędnych (TF: odom -> base_link)
+        # 1. TF: odom -> base_link
         t = TransformStamped()
-        t.header.stamp = current_time.to_msg()
+        t.header.stamp = stamp
         t.header.frame_id = 'odom'
         t.child_frame_id = 'base_link'
         t.transform.translation.x = self.x
@@ -123,9 +180,9 @@ class UnifiedUgvNode(Node):
         t.transform.rotation.w = q[3]
         self.tf_broadcaster.sendTransform(t)
 
-        # 2. Publikacja wiadomości Odometry na topiku /odom
+        # 2. Odometry na /odom
         odom = Odometry()
-        odom.header.stamp = current_time.to_msg()
+        odom.header.stamp = stamp
         odom.header.frame_id = 'odom'
         odom.child_frame_id = 'base_link'
         odom.pose.pose.position.x = self.x
@@ -136,23 +193,25 @@ class UnifiedUgvNode(Node):
         odom.pose.pose.orientation.w = q[3]
         odom.twist.twist.linear.x = v
         odom.twist.twist.angular.z = w
+
+        # Kowariancje (diagonala) - wymagane przez Nav2/EKF
+        odom.pose.covariance[0] = 0.01    # x
+        odom.pose.covariance[7] = 0.01    # y
+        odom.pose.covariance[35] = 0.05   # yaw
+        odom.twist.covariance[0] = 0.01   # vx
+        odom.twist.covariance[35] = 0.05  # wz
         self.odom_pub.publish(odom)
 
-        self.last_time = current_time
-
-    def publish_voltage(self, data):
-        """Publikuje napięcie baterii."""
-        if "v" in data:
-            msg = Float32()
-            msg.data = float(data["v"]) / 100.0
-            self.voltage_pub.publish(msg)
-
     def shutdown(self):
-        """Bezpieczne zatrzymanie wątków i zamknięcie portu."""
-        self.get_logger().info("Zamykanie zintegrowanego węzła...")
+        self.get_logger().info("Zamykanie wezla...")
         self.running = False
+        try:
+            self._send({'T': 131, 'cmd': 0})  # wylacz strumien feedbacku
+        except Exception:
+            pass
         if hasattr(self, 'ser') and self.ser.is_open:
             self.ser.close()
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -165,6 +224,7 @@ def main(args=None):
         node.shutdown()
         node.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
