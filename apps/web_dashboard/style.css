@@ -1,0 +1,237 @@
+/* ============================================================
+   sniff_robot dashboard — motyw: kokpit telemetryczny
+   Bez zewnętrznych fontów i bibliotek → działa offline w sieci robota.
+   ============================================================ */
+
+:root{
+  --bg:#0c1013;
+  --panel:#141a1f;
+  --panel-2:#1a2229;
+  --line:#26313a;
+  --ink:#dbe4ea;
+  --muted:#7d8b96;
+  --acc:#37c2a6;        /* teal — telemetria / robot */
+  --acc-dim:#1f6f60;
+  --amber:#e8b34b;      /* wartości czujników */
+  --danger:#e5484d;
+  --ok:#3fd68a;
+  --mono:ui-monospace,'Cascadia Mono','JetBrains Mono',Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:15px;
+  -webkit-tap-highlight-color:transparent;
+}
+.mono{font-family:var(--mono)}
+.small{font-size:12px;color:var(--muted);line-height:1.5}
+.hidden{display:none !important}
+a{color:var(--acc)}
+
+/* ---------- nagłówek ---------- */
+header{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:10px 16px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#11171c,#0c1013);
+  position:sticky;top:0;z-index:20;flex-wrap:wrap;
+}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand-dot{width:9px;height:9px;border-radius:50%;background:var(--acc);
+  box-shadow:0 0 8px var(--acc);align-self:center}
+.brand-name{font-weight:700;letter-spacing:.18em;font-size:15px}
+.brand-sub{color:var(--muted);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.head-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.conn{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);
+  padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel)}
+.dot{width:9px;height:9px;border-radius:50%;background:#666;flex:none}
+.dot.ok{background:var(--ok);box-shadow:0 0 7px var(--ok);animation:pulse 2s infinite}
+.dot.err{background:var(--danger)}
+@keyframes pulse{50%{opacity:.55}}
+.lat{font-family:var(--mono);font-size:11px}
+
+/* ---------- przyciski ---------- */
+.btn{
+  background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+  padding:7px 12px;border-radius:9px;cursor:pointer;font-size:13px;font-family:var(--sans);
+}
+.btn:hover{border-color:var(--acc-dim)}
+.btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.btn-sm{padding:4px 9px;font-size:12px}
+.btn.on{border-color:var(--acc);color:var(--acc)}
+.btn-primary{background:var(--acc);border-color:var(--acc);color:#06231d;font-weight:600}
+
+/* ---------- siatka paneli ---------- */
+main{
+  display:grid;gap:14px;padding:14px;
+  grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);
+  grid-template-areas:"cam map" "drive sensors";
+  max-width:1500px;margin:0 auto;
+}
+.area-cam{grid-area:cam}.area-map{grid-area:map}
+.area-drive{grid-area:drive}.area-sensors{grid-area:sensors}
+@media (max-width:920px){
+  main{grid-template-columns:1fr;grid-template-areas:"cam" "drive" "map" "sensors";padding:10px;gap:10px}
+}
+
+.panel{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;display:flex;flex-direction:column;min-width:0;
+}
+.panel-h{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:9px 14px;border-bottom:1px solid var(--line);
+}
+.panel-t{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.panel-actions{display:flex;align-items:center;gap:6px}
+.badge{font-size:11px;color:var(--muted);background:var(--panel-2);
+  border:1px solid var(--line);border-radius:6px;padding:2px 7px;
+  max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- overlay (komunikaty w panelach) ---------- */
+.overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;gap:8px;
+  align-items:center;justify-content:center;text-align:center;padding:18px;
+  background:rgba(12,16,19,.82);backdrop-filter:blur(2px);
+}
+
+/* ---------- kamera ---------- */
+.cam-wrap{position:relative;aspect-ratio:16/9;background:#000}
+#camImg{width:100%;height:100%;object-fit:contain;display:block}
+
+/* ---------- mapa ---------- */
+.map-wrap{position:relative;height:clamp(280px,44vh,540px);background:#0a0e11}
+#mapCanvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+#mapCanvas:active{cursor:grabbing}
+
+/* ---------- sterowanie ---------- */
+.drive-wrap{display:flex;gap:22px;padding:18px;flex-wrap:wrap;align-items:center;justify-content:center}
+.joy-col{display:flex;flex-direction:column;align-items:center;gap:10px}
+#joy{
+  position:relative;width:198px;height:198px;border-radius:50%;touch-action:none;
+  background:radial-gradient(circle at 50% 42%,#1d2730,#12181d 68%);
+  border:1px solid var(--line);
+  box-shadow:inset 0 0 26px rgba(0,0,0,.55);
+  flex:none;
+}
+.joy-cross{position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:
+    linear-gradient(var(--line),var(--line)) center/1px 78% no-repeat,
+    linear-gradient(var(--line),var(--line)) center/78% 1px no-repeat;
+  border-radius:50%;
+}
+#knob{
+  position:absolute;left:50%;top:50%;width:76px;height:76px;margin:-38px 0 0 -38px;
+  border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#5fe0c6,var(--acc) 55%,#1c8a75);
+  box-shadow:0 4px 14px rgba(0,0,0,.5),0 0 16px rgba(55,194,166,.35);
+  will-change:transform;
+}
+.keys-hint{font-size:11px;color:var(--muted)}
+.keys-hint .mono{color:var(--ink)}
+
+.drive-side{display:flex;flex-direction:column;gap:13px;min-width:230px;flex:1;max-width:340px}
+.slider-row{display:grid;grid-template-columns:1fr;gap:4px;font-size:12px;color:var(--muted)}
+.slider-row input[type=range]{width:100%;accent-color:var(--acc)}
+.slider-row .mono{color:var(--ink);font-size:12px}
+.speed-read{
+  font-size:15px;text-align:center;padding:9px;border-radius:9px;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--acc);
+}
+.btn-stop{
+  background:var(--danger);border:none;color:#fff;font-weight:800;font-size:17px;
+  letter-spacing:.1em;padding:15px;border-radius:11px;cursor:pointer;
+  box-shadow:0 3px 12px rgba(229,72,77,.35);
+}
+.btn-stop:active,.btn-stop.flash{filter:brightness(1.25)}
+
+#stopFab{
+  position:fixed;right:16px;bottom:16px;z-index:40;width:70px;height:70px;border-radius:50%;
+  background:var(--danger);color:#fff;border:none;font-weight:800;font-size:13px;
+  letter-spacing:.06em;cursor:pointer;box-shadow:0 5px 18px rgba(229,72,77,.45);
+  display:none;
+}
+@media (max-width:920px){#stopFab{display:block}}
+
+/* ---------- czujniki ---------- */
+.sensor-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));
+  gap:10px;padding:12px;
+}
+.sensor-card{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:11px;
+  padding:10px 11px;display:flex;flex-direction:column;gap:5px;position:relative;
+}
+.sensor-card.stale{opacity:.45}
+.sensor-card .s-label{font-size:11px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;
+  padding-right:18px}
+.sensor-card .s-val{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--amber)}
+.sensor-card .s-val .s-unit{font-size:12px;color:var(--muted);font-weight:400;margin-left:4px}
+.sensor-card .s-topic{font-family:var(--mono);font-size:10px;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sensor-card canvas{width:100%;height:30px;display:block}
+.sensor-card .s-del{
+  position:absolute;top:7px;right:8px;background:none;border:none;color:var(--muted);
+  cursor:pointer;font-size:13px;line-height:1;padding:2px;
+}
+.sensor-card .s-del:hover{color:var(--danger)}
+.empty{padding:22px;text-align:center;display:flex;flex-direction:column;gap:6px}
+
+/* ---------- modale ---------- */
+.modal{
+  position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.62);
+  display:flex;align-items:center;justify-content:center;padding:14px;
+}
+.sheet{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  width:100%;max-width:660px;max-height:86vh;overflow:auto;
+}
+.sheet-h{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:11px 14px;border-bottom:1px solid var(--line);
+  font-size:13px;font-weight:600;letter-spacing:.05em;
+  position:sticky;top:0;background:var(--panel);z-index:2;
+}
+.pad-h{padding:10px 14px 0}
+
+.topic-list{padding:8px 10px 14px;display:flex;flex-direction:column;gap:4px}
+.topic-row{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);
+}
+.topic-row .t-name{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.topic-row .t-type{font-family:var(--mono);font-size:10.5px;color:var(--muted);word-break:break-all;flex:1;min-width:120px}
+.topic-row.hl{border-color:var(--acc-dim)}
+
+.preview{border-top:1px solid var(--line)}
+.preview pre{
+  font-family:var(--mono);font-size:11.5px;line-height:1.45;color:var(--acc);
+  padding:12px 14px;max-height:290px;overflow:auto;white-space:pre-wrap;word-break:break-all;
+}
+
+/* ---------- formularz ustawień ---------- */
+.form{padding:14px;display:flex;flex-direction:column;gap:12px}
+.form label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
+.form input{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+  color:var(--ink);padding:9px 10px;font-size:14px;font-family:inherit;
+}
+.form input:focus{outline:none;border-color:var(--acc)}
+.form-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-btns{display:flex;justify-content:space-between;gap:10px;margin-top:4px}
+
+/* ---------- toast / stopka ---------- */
+#toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:60;
+  background:var(--panel-2);border:1px solid var(--acc-dim);color:var(--ink);
+  padding:9px 16px;border-radius:10px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.5);
+}
+footer{padding:8px 16px 18px;text-align:center;font-size:11px;color:var(--muted)}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+}
