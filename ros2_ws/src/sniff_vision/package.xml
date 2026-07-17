@@ -2,7 +2,7 @@
 <package format="3">
   <name>sniff_vision</name>
   <version>0.1.0</version>
-  <description>SNIFF vision node</description>
+  <description>SNIFF vision node - OAK-D Lite YOLO detection</description>
   <maintainer email="sniff@todo.todo">sniff</maintainer>
   <license>MIT</license>
   <depend>rclpy</depend>

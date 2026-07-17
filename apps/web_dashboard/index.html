@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SNIFF ROBOT — panel sterowania</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="brand-dot"></span>
+    <span class="brand-name">SNIFF&nbsp;ROBOT</span>
+    <span class="brand-sub">panel sterowania</span>
+  </div>
+  <div class="head-right">
+    <div class="conn">
+      <span id="statusDot" class="dot"></span>
+      <span id="statusTxt">łączenie…</span>
+      <span id="latTxt" class="lat"></span>
+    </div>
+    <button id="btnTopics" class="btn" title="Przeglądaj topiki ROS2">📋 Topiki</button>
+    <button id="btnSettings" class="btn" title="Ustawienia">⚙</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===================== KAMERA ===================== -->
+  <section class="panel area-cam">
+    <div class="panel-h">
+      <span class="panel-t">Kamera</span>
+      <span id="camTopicBadge" class="badge mono"></span>
+    </div>
+    <div class="cam-wrap">
+      <img id="camImg" alt="Obraz z kamery robota">
+      <div id="camOverlay" class="overlay hidden">
+        <p>Brak strumienia wideo.</p>
+        <p class="small">Sprawdź czy <span class="mono">web_video_server</span> działa
+        i czy topic kamery jest poprawny.<br>
+        Lista dostępnych strumieni: <a id="camServerLink" href="#" target="_blank" class="mono"></a></p>
+        <button id="camRetry" class="btn">Połącz ponownie</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== MAPA ===================== -->
+  <section class="panel area-map">
+    <div class="panel-h">
+      <span class="panel-t">Mapa · SLAM</span>
+      <span class="panel-actions">
+        <span id="mapMeta" class="badge mono"></span>
+        <button id="btnScan" class="btn btn-sm on" title="Nakładka skanu lidara">skan</button>
+        <button id="btnFit" class="btn btn-sm" title="Dopasuj widok">⤢</button>
+      </span>
+    </div>
+    <div class="map-wrap" id="mapWrap">
+      <canvas id="mapCanvas"></canvas>
+      <div id="mapOverlay" class="overlay">
+        <p>Oczekiwanie na mapę…</p>
+        <p class="small">Uruchom SLAM (np. <span class="mono">lidar_bringup.launch.py</span>),
+        mapa pojawi się z topicu <span id="mapTopicHint" class="mono"></span>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== STEROWANIE ===================== -->
+  <section class="panel area-drive">
+    <div class="panel-h">
+      <span class="panel-t">Sterowanie</span>
+      <span id="cmdVelBadge" class="badge mono"></span>
+    </div>
+    <div class="drive-wrap">
+
+      <div class="joy-col">
+        <div id="joy">
+          <div class="joy-cross"></div>
+          <div id="knob"></div>
+        </div>
+        <div class="keys-hint">klawiatura: <span class="mono">W A S D</span> / strzałki · <span class="mono">spacja</span> = STOP</div>
+      </div>
+
+      <div class="drive-side">
+        <label class="slider-row">
+          <span>prędkość liniowa</span>
+          <input type="range" id="sliderLin" min="0.05" max="1.5" step="0.05">
+          <span id="valLin" class="mono"></span>
+        </label>
+        <label class="slider-row">
+          <span>prędkość obrotowa</span>
+          <input type="range" id="sliderAng" min="0.1" max="3.0" step="0.1">
+          <span id="valAng" class="mono"></span>
+        </label>
+
+        <div class="speed-read mono" id="speedRead">v 0.00 m/s&nbsp;&nbsp;ω 0.00 rad/s</div>
+
+        <button id="btnStop" class="btn-stop">■ STOP</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===================== CZUJNIKI ===================== -->
+  <section class="panel area-sensors">
+    <div class="panel-h">
+      <span class="panel-t">Czujniki</span>
+      <button id="btnAddSensor" class="btn btn-sm">+ dodaj</button>
+    </div>
+    <div id="sensorGrid" class="sensor-grid"></div>
+    <div id="sensorsEmpty" class="empty">
+      <p>Brak skonfigurowanych czujników.</p>
+      <p class="small">Gdy podłączysz czujnik (np. jakości powietrza) i jego node zacznie publikować,
+      kliknij <b>+ dodaj</b> — wybierzesz topic z listy i karta pojawi się tutaj.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>sniff_robot · rosbridge <span id="footUrl" class="mono"></span></footer>
+
+<!-- STOP zawsze pod ręką (mobile) -->
+<button id="stopFab" title="Zatrzymaj robota">STOP</button>
+
+<!-- ===================== MODAL: TOPIKI ===================== -->
+<div id="modalTopics" class="modal hidden">
+  <div class="sheet">
+    <div class="sheet-h">
+      <span>Topiki ROS2</span>
+      <span>
+        <button id="btnTopicsRefresh" class="btn btn-sm">odśwież</button>
+        <button class="btn btn-sm" data-close="modalTopics">✕</button>
+      </span>
+    </div>
+    <p class="small pad-h">Kliknij <b>podgląd</b>, aby zobaczyć wiadomości na żywo.
+    Topiki typu <span class="mono">Twist</span> możesz ustawić jako cel sterowania,
+    obrazy jako kamerę, a wartości liczbowe dodać jako czujnik.</p>
+    <div id="topicList" class="topic-list"></div>
+    <div id="topicPreviewWrap" class="preview hidden">
+      <div class="sheet-h">
+        <span id="topicPreviewTitle" class="mono small"></span>
+        <button id="btnPreviewClose" class="btn btn-sm">zamknij podgląd</button>
+      </div>
+      <pre id="topicPreview"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: USTAWIENIA ===================== -->
+<div id="modalSettings" class="modal hidden">
+  <div class="sheet">
+    <div class="sheet-h">
+      <span>Ustawienia</span>
+      <button class="btn btn-sm" data-close="modalSettings">✕</button>
+    </div>
+    <div class="form">
+      <label>Host robota (IP)<input id="f_host" placeholder="auto (host strony)"></label>
+      <div class="form-2">
+        <label>Port rosbridge<input id="f_wsPort" type="number"></label>
+        <label>Port wideo<input id="f_videoPort" type="number"></label>
+      </div>
+      <label>Topic sterowania (Twist)<input id="f_cmdVelTopic" class="mono"></label>
+      <label>Topic kamery (Image)<input id="f_cameraTopic" class="mono"></label>
+      <div class="form-2">
+        <label>Topic mapy<input id="f_mapTopic" class="mono"></label>
+        <label>Topic pozycji<input id="f_poseTopic" class="mono"></label>
+      </div>
+      <label>Topic skanu lidara<input id="f_scanTopic" class="mono"></label>
+      <div class="form-btns">
+        <button id="btnCfgReset" class="btn">przywróć domyślne</button>
+        <button id="btnCfgSave" class="btn btn-primary">Zapisz i przeładuj</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>
