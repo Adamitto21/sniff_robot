@@ -1,0 +1,258 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-7e4ddf64b8819797a9c7.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14,
+						15,
+						17,
+						18
+					]
+				},
+				{
+					"build" : "sniff_msgs__py",
+					"jsonFile" : "directory-sniff_msgs__py-1b4d432e75d7fba45099.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/ros2_ws/src/build/sniff_msgs/sniff_msgs__py",
+					"targetIndexes" : 
+					[
+						4
+					]
+				},
+				{
+					"build" : "sniff_msgs__rs",
+					"jsonFile" : "directory-sniff_msgs__rs-37264934f2a329260f64.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.12"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "/ros2_ws/src/build/sniff_msgs/sniff_msgs__rs",
+					"targetIndexes" : 
+					[
+						16
+					]
+				}
+			],
+			"name" : "",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"name" : "sniff_msgs",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9,
+						10,
+						11,
+						12,
+						13,
+						14,
+						15,
+						16,
+						17,
+						18
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "ament_cmake_python_build_sniff_msgs_egg::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ament_cmake_python_build_sniff_msgs_egg-4e744030c1abf398ca2e.json",
+					"name" : "ament_cmake_python_build_sniff_msgs_egg",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ament_cmake_python_copy_sniff_msgs::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ament_cmake_python_copy_sniff_msgs-212eb55a5e90165a1739.json",
+					"name" : "ament_cmake_python_copy_sniff_msgs",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs-560d3172e2f5bf3b700f.json",
+					"name" : "sniff_msgs",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__cpp-4bde4f50f7259e6bda3f.json",
+					"name" : "sniff_msgs__cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "sniff_msgs__py::@9da78f5d0426412d7883",
+					"jsonFile" : "target-sniff_msgs__py-35a9c40dd55547b1e911.json",
+					"name" : "sniff_msgs__py",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_generator_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_generator_c-fc6297e0729530ff0d03.json",
+					"name" : "sniff_msgs__rosidl_generator_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_generator_py::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_generator_py-01ac09fbcd90543fa92c.json",
+					"name" : "sniff_msgs__rosidl_generator_py",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_c-118abbfe59eba1d7a8ae.json",
+					"name" : "sniff_msgs__rosidl_typesupport_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_c__pyext::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_c__pyext-62a192b80bd619749251.json",
+					"name" : "sniff_msgs__rosidl_typesupport_c__pyext",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_cpp-32b06473cd4e068b6f6c.json",
+					"name" : "sniff_msgs__rosidl_typesupport_cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_fastrtps_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_fastrtps_c-6218a833b151a4a42f4c.json",
+					"name" : "sniff_msgs__rosidl_typesupport_fastrtps_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_fastrtps_c__pyext::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_fastrtps_c__pyext-8218d9389df5d5f65aac.json",
+					"name" : "sniff_msgs__rosidl_typesupport_fastrtps_c__pyext",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_fastrtps_cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_fastrtps_cpp-9334a6e513362e6a3df8.json",
+					"name" : "sniff_msgs__rosidl_typesupport_fastrtps_cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_introspection_c::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_introspection_c-7999c462edd7103da6d4.json",
+					"name" : "sniff_msgs__rosidl_typesupport_introspection_c",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_introspection_c__pyext::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_introspection_c__pyext-4a63c047d7eb6133d642.json",
+					"name" : "sniff_msgs__rosidl_typesupport_introspection_c__pyext",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs__rosidl_typesupport_introspection_cpp::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs__rosidl_typesupport_introspection_cpp-ccbb20deac4cf9148d5c.json",
+					"name" : "sniff_msgs__rosidl_typesupport_introspection_cpp",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "sniff_msgs__rs::@336242dcf2f3cd64f1d9",
+					"jsonFile" : "target-sniff_msgs__rs-98e85ad5a4867674ad6e.json",
+					"name" : "sniff_msgs__rs",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "sniff_msgs_uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-sniff_msgs_uninstall-d42d8424f3369b3a6e78.json",
+					"name" : "sniff_msgs_uninstall",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "uninstall::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-uninstall-b2daec3f645f497c86ce.json",
+					"name" : "uninstall",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/ros2_ws/src/build/sniff_msgs",
+		"source" : "/ros2_ws/src/sniff_msgs"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}

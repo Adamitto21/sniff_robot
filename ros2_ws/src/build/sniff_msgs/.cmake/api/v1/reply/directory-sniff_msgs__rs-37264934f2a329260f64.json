@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "sniff_msgs__rs",
+		"source" : "/ros2_ws/src/build/sniff_msgs/sniff_msgs__rs"
+	}
+}

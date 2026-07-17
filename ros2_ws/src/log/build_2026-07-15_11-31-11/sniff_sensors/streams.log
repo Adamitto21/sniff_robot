@@ -1,0 +1,37 @@
+[1.334s] Invoking command in '/ros2_ws/src/sniff_sensors': AMENT_PREFIX_PATH=/ros2_ws/src/install/sniff_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/src/install/sniff_msgs:${CMAKE_PREFIX_PATH} LD_LIBRARY_PATH=/ros2_ws/src/install/sniff_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/src/build/sniff_sensors/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros2_ws/src/install/sniff_sensors/lib/python3.10/site-packages:/ros2_ws/src/install/sniff_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/sniff_sensors build --build-base /ros2_ws/src/build/sniff_sensors/build install --record /ros2_ws/src/build/sniff_sensors/install.log --single-version-externally-managed install_data
+[1.787s] running egg_info
+[1.788s] creating ../build/sniff_sensors/sniff_sensors.egg-info
+[1.789s] writing ../build/sniff_sensors/sniff_sensors.egg-info/PKG-INFO
+[1.789s] writing dependency_links to ../build/sniff_sensors/sniff_sensors.egg-info/dependency_links.txt
+[1.790s] writing entry points to ../build/sniff_sensors/sniff_sensors.egg-info/entry_points.txt
+[1.790s] writing requirements to ../build/sniff_sensors/sniff_sensors.egg-info/requires.txt
+[1.791s] writing top-level names to ../build/sniff_sensors/sniff_sensors.egg-info/top_level.txt
+[1.791s] writing manifest file '../build/sniff_sensors/sniff_sensors.egg-info/SOURCES.txt'
+[1.794s] reading manifest file '../build/sniff_sensors/sniff_sensors.egg-info/SOURCES.txt'
+[1.795s] writing manifest file '../build/sniff_sensors/sniff_sensors.egg-info/SOURCES.txt'
+[1.796s] running build
+[1.796s] running build_py
+[1.796s] creating /ros2_ws/src/build/sniff_sensors/build
+[1.797s] creating /ros2_ws/src/build/sniff_sensors/build/lib
+[1.797s] creating /ros2_ws/src/build/sniff_sensors/build/lib/sniff_sensors
+[1.797s] copying sniff_sensors/__init__.py -> /ros2_ws/src/build/sniff_sensors/build/lib/sniff_sensors
+[1.797s] copying sniff_sensors/pms5003_node.py -> /ros2_ws/src/build/sniff_sensors/build/lib/sniff_sensors
+[1.798s] running install
+[1.798s] running install_lib
+[1.799s] creating /ros2_ws/src/install/sniff_sensors/lib/python3.10/site-packages/sniff_sensors
+[1.800s] copying /ros2_ws/src/build/sniff_sensors/build/lib/sniff_sensors/__init__.py -> /ros2_ws/src/install/sniff_sensors/lib/python3.10/site-packages/sniff_sensors
+[1.800s] copying /ros2_ws/src/build/sniff_sensors/build/lib/sniff_sensors/pms5003_node.py -> /ros2_ws/src/install/sniff_sensors/lib/python3.10/site-packages/sniff_sensors
+[1.801s] byte-compiling /ros2_ws/src/install/sniff_sensors/lib/python3.10/site-packages/sniff_sensors/__init__.py to __init__.cpython-310.pyc
+[1.802s] byte-compiling /ros2_ws/src/install/sniff_sensors/lib/python3.10/site-packages/sniff_sensors/pms5003_node.py to pms5003_node.cpython-310.pyc
+[1.803s] running install_data
+[1.804s] creating /ros2_ws/src/install/sniff_sensors/share/ament_index
+[1.804s] creating /ros2_ws/src/install/sniff_sensors/share/ament_index/resource_index
+[1.804s] creating /ros2_ws/src/install/sniff_sensors/share/ament_index/resource_index/packages
+[1.804s] copying resource/sniff_sensors -> /ros2_ws/src/install/sniff_sensors/share/ament_index/resource_index/packages
+[1.805s] copying package.xml -> /ros2_ws/src/install/sniff_sensors/share/sniff_sensors
+[1.805s] running install_egg_info
+[1.809s] Copying ../build/sniff_sensors/sniff_sensors.egg-info to /ros2_ws/src/install/sniff_sensors/lib/python3.10/site-packages/sniff_sensors-0.0.1-py3.10.egg-info
+[1.810s] running install_scripts
+[1.856s] Installing pms5003_node script to /ros2_ws/src/install/sniff_sensors/lib/sniff_sensors
+[1.857s] writing list of installed files to '/ros2_ws/src/build/sniff_sensors/install.log'
+[1.937s] Invoked command in '/ros2_ws/src/sniff_sensors' returned '0': AMENT_PREFIX_PATH=/ros2_ws/src/install/sniff_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/ros2_ws/src/install/sniff_msgs:${CMAKE_PREFIX_PATH} LD_LIBRARY_PATH=/ros2_ws/src/install/sniff_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/ros2_ws/src/build/sniff_sensors/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros2_ws/src/install/sniff_sensors/lib/python3.10/site-packages:/ros2_ws/src/install/sniff_msgs/local/lib/python3.10/dist-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../build/sniff_sensors build --build-base /ros2_ws/src/build/sniff_sensors/build install --record /ros2_ws/src/build/sniff_sensors/install.log --single-version-externally-managed install_data

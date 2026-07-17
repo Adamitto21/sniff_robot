@@ -29,7 +29,7 @@ class UnifiedUgvNode(Node):
         # Rozstaw kol. Firmware UGV02 (mainType==2) uzywa TRACK_WIDTH=0.172 m.
         # Skid-steer 6x4 slizga sie na skrecie -> efektywny rozstaw bywa WIEKSZY.
         # Robot na mapie skreca za malo/za duzo -> koryguj TEN parametr.
-        self.declare_parameter('track_width', 0.172)
+        self.declare_parameter('track_width', 0.44)
         # Skala enkodera: z testu 1 obrotu -> 0.251 m / 24 jedn. = 0.0105 m/jedn.
         # Zmierzone zgrubnie (+-1 jedn. ~ +-4%). Robot jedzie za daleko/za blisko
         # w LINII PROSTEJ -> koryguj TEN parametr.
