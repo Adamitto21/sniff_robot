@@ -1,3 +1,0 @@
-[console_scripts]
-pms5003_node = sniff_sensors.pms5003_node:main
-

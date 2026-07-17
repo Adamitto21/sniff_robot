@@ -1,6 +1,0 @@
-{
-  "package_name": "sniff_msgs",
-  "non_idl_tuples": [
-    "/ros2_ws/src/sniff_msgs:msg/Pms5003.msg"
-  ]
-}

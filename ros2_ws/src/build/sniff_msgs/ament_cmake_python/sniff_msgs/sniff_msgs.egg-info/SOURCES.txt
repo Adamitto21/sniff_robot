@@ -1,6 +1,0 @@
-setup.py
-sniff_msgs/__init__.py
-sniff_msgs.egg-info/PKG-INFO
-sniff_msgs.egg-info/SOURCES.txt
-sniff_msgs.egg-info/dependency_links.txt
-sniff_msgs.egg-info/top_level.txt
