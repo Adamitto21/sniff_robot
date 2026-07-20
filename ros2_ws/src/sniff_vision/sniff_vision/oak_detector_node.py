@@ -27,7 +27,6 @@ LABELS = [
 class OakDetectorNode(Node):
     def __init__(self):
         super().__init__('oak_detector')
-
         self.declare_parameter('blob_path', '')
         self.declare_parameter('confidence_threshold', 0.5)
         self.declare_parameter('fps', 15)
@@ -35,28 +34,24 @@ class OakDetectorNode(Node):
         blob_path = self.get_parameter('blob_path').value
         if not blob_path:
             pkg_dir = get_package_share_directory('sniff_vision')
-            blob_path = os.path.join(pkg_dir, 'models', 'yolov8n.blob')
+            blob_path = os.path.join(pkg_dir, 'models', 'yolov5n.blob')
 
         self.conf_thresh = self.get_parameter('confidence_threshold').value
         fps = self.get_parameter('fps').value
 
-        self.get_logger().info(f'Ładowanie modelu: {blob_path}')
-
+        self.get_logger().info(f'Ladowanie modelu: {blob_path}')
         self.pub_detections = self.create_publisher(Detection2DArray, '/detections', 10)
         self.pub_image = self.create_publisher(Image, '/sniff/camera/image', 10)
         self.bridge = CvBridge()
-
         self.device, self.q_rgb, self.q_nn = self._build_pipeline(blob_path, fps)
-        self.get_logger().info('Kamera i model gotowe ✓')
-
+        self.get_logger().info('Kamera i model gotowe')
         self.create_timer(1.0 / fps, self.process_frame)
 
     def _build_pipeline(self, blob_path, fps):
-        # depthai 2.x API
         pipeline = dai.Pipeline()
 
         cam_rgb = pipeline.create(dai.node.ColorCamera)
-        nn = pipeline.create(dai.node.NeuralNetwork)
+        nn = pipeline.create(dai.node.YoloDetectionNetwork)
         xout_rgb = pipeline.createXLinkOut()
         xout_nn = pipeline.createXLinkOut()
 
@@ -65,9 +60,24 @@ class OakDetectorNode(Node):
 
         cam_rgb.setPreviewSize(416, 416)
         cam_rgb.setInterleaved(False)
+        cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
         cam_rgb.setFps(fps)
 
         nn.setBlobPath(blob_path)
+        nn.setConfidenceThreshold(self.conf_thresh)
+        nn.setNumClasses(80)
+        nn.setCoordinateSize(4)
+        nn.setIouThreshold(0.5)
+        nn.setAnchors([
+            10, 13, 16, 30, 33, 23,
+            30, 61, 62, 45, 59, 119,
+            116, 90, 156, 198, 373, 326
+        ])
+        nn.setAnchorMasks({
+            "side52": [0, 1, 2],
+            "side26": [3, 4, 5],
+            "side13": [6, 7, 8]
+        })
         nn.input.setBlocking(False)
         nn.input.setQueueSize(1)
 
@@ -76,16 +86,13 @@ class OakDetectorNode(Node):
         nn.out.link(xout_nn.input)
 
         device = dai.Device(pipeline)
-
         q_rgb = device.getOutputQueue("rgb", maxSize=4, blocking=False)
         q_nn = device.getOutputQueue("nn", maxSize=4, blocking=False)
-
         return device, q_rgb, q_nn
 
     def process_frame(self):
         in_rgb = self.q_rgb.tryGet()
         in_nn = self.q_nn.tryGet()
-
         if in_rgb is None:
             return
 
@@ -97,51 +104,33 @@ class OakDetectorNode(Node):
         det_array.header.frame_id = 'oak_camera'
 
         if in_nn is not None:
-            output = np.array(in_nn.getFirstLayerFp16())
-            output = output.reshape(84, -1).T  # (3549, 84)
+            for det in in_nn.detections:
+                label = LABELS[det.label] if det.label < len(LABELS) else str(det.label)
+                x1 = int(det.xmin * w)
+                y1 = int(det.ymin * h)
+                x2 = int(det.xmax * w)
+                y2 = int(det.ymax * h)
 
-            boxes = output[:, :4]
-            scores = output[:, 4:]
-
-            class_ids = np.argmax(scores, axis=1)
-            confidences = scores[np.arange(len(scores)), class_ids]
-
-            mask = confidences > self.conf_thresh
-            boxes = boxes[mask]
-            confidences = confidences[mask]
-            class_ids = class_ids[mask]
-
-            for box, conf, cls_id in zip(boxes, confidences, class_ids):
-                cx, cy, bw, bh = box
-                x1 = int((cx - bw / 2) * w)
-                y1 = int((cy - bh / 2) * h)
-                x2 = int((cx + bw / 2) * w)
-                y2 = int((cy + bh / 2) * h)
-
-                label = LABELS[cls_id] if cls_id < len(LABELS) else str(cls_id)
-
-                det = Detection2D()
-                det.header = det_array.header
-                det.bbox.center.position.x = float(cx * w)
-                det.bbox.center.position.y = float(cy * h)
-                det.bbox.size_x = float(bw * w)
-                det.bbox.size_y = float(bh * h)
+                ros_det = Detection2D()
+                ros_det.header = det_array.header
+                ros_det.bbox.center.position.x = float((x1 + x2) / 2)
+                ros_det.bbox.center.position.y = float((y1 + y2) / 2)
+                ros_det.bbox.size_x = float(x2 - x1)
+                ros_det.bbox.size_y = float(y2 - y1)
                 hyp = ObjectHypothesisWithPose()
                 hyp.hypothesis.class_id = label
-                hyp.hypothesis.score = float(conf)
-                det.results.append(hyp)
-                det_array.detections.append(det)
+                hyp.hypothesis.score = float(det.confidence)
+                ros_det.results.append(hyp)
+                det_array.detections.append(ros_det)
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(frame, f'{label} {conf:.2f}',
-                            (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5, (0, 255, 0), 1)
+                cv2.putText(frame, f'{label} {det.confidence:.2f}',
+                            (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
         self.pub_detections.publish(det_array)
         img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
         img_msg.header = det_array.header
         self.pub_image.publish(img_msg)
-
 
 def main(args=None):
     rclpy.init(args=args)
@@ -154,7 +143,6 @@ def main(args=None):
         node.device.close()
         node.destroy_node()
         rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
