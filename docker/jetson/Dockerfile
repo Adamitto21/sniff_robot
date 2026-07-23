@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y \
     ros-humble-joint-state-publisher \
     ros-humble-rosbridge-suite \
     ros-humble-web-video-server \
+    ros-humble-urdf-tutorial \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install depthai==2.24.0.0
