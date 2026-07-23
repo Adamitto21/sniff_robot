@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     ros-humble-urdf-tutorial \
     ros-humble-xacro \
     ros-humble-teleop-twist-keyboard \
+    ros-humble-gazebo-ros-pkgs \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install depthai==2.24.0.0
