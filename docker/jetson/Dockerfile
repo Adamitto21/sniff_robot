@@ -2,31 +2,45 @@ FROM ros:humble-perception
 
 # Instalacja paczek ROS 2 - usunęliśmy pakiety graficzne typu rviz2 (nie będą tu potrzebne)
 RUN apt-get update && apt-get install -y \
+    #niezbedne paczki
     python3-colcon-common-extensions \
     python3-pip \
+    python3-serial \
     nano \
     iputils-ping \
     net-tools \
     usbutils \
+
+    #dodatkowe paczki rosa
     ros-humble-rviz2 \
     ros-humble-rqt \
     ros-humble-rqt-common-plugins \
+    
+    #paczki do lidara
     ros-humble-rplidar-ros \
     ros-humble-slam-toolbox \
+    
+    #paczki do kamery
     ros-humble-vision-msgs \
     ros-humble-cv-bridge \
-    python3-serial \
+    
+    #paczki do autonomicznego poruszania sie
     ros-humble-nav2-costmap-2d \
     ros-humble-navigation2 \
     ros-humble-nav2-bringup \
+    ros-humble-pointcloud-to-laserscan \
+
+    #paczki do symulacji
     ros-humble-xacro \
     ros-humble-robot-state-publisher \
     ros-humble-joint-state-publisher \
+    ros-humble-urdf-tutorial \
+    ros-humble-teleop-twist-keyboard \
+    ros-humble-gazebo-ros-pkgs \
+
+    #paczki do strony internetowej
     ros-humble-rosbridge-suite \
     ros-humble-web-video-server \
-    ros-humble-urdf-tutorial \
-    ros-humble-xacro \
-    ros-humble-teleop-twist-keyboard \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install depthai==2.24.0.0
