@@ -22,19 +22,10 @@ def euler_to_quaternion(roll, pitch, yaw):
 class UnifiedUgvNode(Node):
     def __init__(self):
         super().__init__('unified_ugv_node')
-
-        # --- Parametry (kalibracja bez rebuildu: --ros-args -p nazwa:=wartosc) ---
         self.declare_parameter('serial_port', '/dev/ttyCH343USB0')
         self.declare_parameter('baudrate', 115200)
-        # Rozstaw kol. Firmware UGV02 (mainType==2) uzywa TRACK_WIDTH=0.172 m.
-        # Skid-steer 6x4 slizga sie na skrecie -> efektywny rozstaw bywa WIEKSZY.
-        # Robot na mapie skreca za malo/za duzo -> koryguj TEN parametr.
         self.declare_parameter('track_width', 0.44)
-        # Skala enkodera: z testu 1 obrotu -> 0.251 m / 24 jedn. = 0.0105 m/jedn.
-        # Zmierzone zgrubnie (+-1 jedn. ~ +-4%). Robot jedzie za daleko/za blisko
-        # w LINII PROSTEJ -> koryguj TEN parametr.
         self.declare_parameter('meters_per_tick', 0.0105)
-        # Max realny przyrost licznika na 1 ramce (odrzucanie glitchy / wrap-around).
         self.declare_parameter('max_tick_delta', 100)
 
         self.serial_port = self.get_parameter('serial_port').value
@@ -43,18 +34,14 @@ class UnifiedUgvNode(Node):
         self.mpt = self.get_parameter('meters_per_tick').value
         self.max_tick_delta = self.get_parameter('max_tick_delta').value
 
-        # --- Stan odometrii ---
         self.x = 0.0
         self.y = 0.0
         self.th = 0.0
         self.odl_prev = None
         self.odr_prev = None
 
-        # --- Port szeregowy ---
         try:
             self.ser = serial.Serial(self.serial_port, baudrate, timeout=1)
-            # ESP32 resetuje sie przy otwarciu portu CH343 (DTR/RTS -> EN).
-            # Przez ~2 s bootuje i gubi komendy -> czekamy przed pierwsza komenda.
             time.sleep(2.0)
             self.ser.reset_input_buffer()
             self.get_logger().info(f"Polaczono z ESP32 na porcie: {self.serial_port}")
@@ -62,7 +49,6 @@ class UnifiedUgvNode(Node):
             self.get_logger().error(f"Blad otwarcia portu szeregowego: {e}")
             raise e
 
-        # --- ROS I/O ---
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
         self.tf_broadcaster = TransformBroadcaster(self)
         self.cmd_vel_sub = self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 10)
@@ -91,7 +77,6 @@ class UnifiedUgvNode(Node):
         linear_velocity = msg.linear.x
         angular_velocity = msg.angular.z
 
-        # Filtr progowy dla malych predkosci obrotowych (z kodu Waveshare)
         if linear_velocity == 0:
             if 0 < angular_velocity < 0.2:
                 angular_velocity = 0.2
@@ -107,16 +92,15 @@ class UnifiedUgvNode(Node):
                 line = self.ser.readline().decode('utf-8').strip()
                 if line:
                     data = json.loads(line)
-                    if data.get("T") == 1001:   # FEEDBACK_BASE_INFO
+                    if data.get("T") == 1001:
                         self.update_and_publish_odometry(data)
             except json.JSONDecodeError:
-                pass  # niepelna ramka szeregowa
+                pass
             except Exception as e:
                 if self.running:
                     self.get_logger().warn(f"Blad w petli UART: {e}")
 
     def update_and_publish_odometry(self, data):
-        # Enkodery to LICZNIKI AKUMULOWANE (odl=lewy, odr=prawy). Liczymy przyrost.
         try:
             odl = int(data["odl"])
             odr = int(data["odr"])
@@ -125,7 +109,6 @@ class UnifiedUgvNode(Node):
 
         current_time = self.get_clock().now()
 
-        # Pierwsza ramka: tylko zapamietaj punkt odniesienia
         if self.odl_prev is None:
             self.odl_prev = odl
             self.odr_prev = odr
@@ -134,7 +117,6 @@ class UnifiedUgvNode(Node):
         delta_l_ticks = odl - self.odl_prev
         delta_r_ticks = odr - self.odr_prev
 
-        # Odrzuc glitche / wrap-around licznika (nierealny skok w jednej ramce)
         if abs(delta_l_ticks) > self.max_tick_delta or abs(delta_r_ticks) > self.max_tick_delta:
             self.odl_prev = odl
             self.odr_prev = odr
@@ -143,21 +125,17 @@ class UnifiedUgvNode(Node):
         self.odl_prev = odl
         self.odr_prev = odr
 
-        # Przyrosty dystansu kol [m]. Znak: przod = licznik rosnie -> dodatni dystans.
         d_left = delta_l_ticks * self.mpt
         d_right = delta_r_ticks * self.mpt
 
-        # Kinematyka rozniczkowa
         d_center = (d_left + d_right) / 2.0
         d_theta = (d_right - d_left) / self.track_width
 
-        # Integracja pozycji (metoda punktu srodkowego - dokladniejsza na luku)
         self.x += d_center * math.cos(self.th + d_theta / 2.0)
         self.y += d_center * math.sin(self.th + d_theta / 2.0)
         self.th += d_theta
         self.th = math.atan2(math.sin(self.th), math.cos(self.th))  # normalizacja (-pi, pi]
 
-        # Predkosc do twist: z realnego pomiaru L/R (m/s), nie z rozniczkowania licznika
         v_left = float(data.get("L", 0.0))
         v_right = float(data.get("R", 0.0))
         v = (v_right + v_left) / 2.0
@@ -166,7 +144,6 @@ class UnifiedUgvNode(Node):
         q = euler_to_quaternion(0, 0, self.th)
         stamp = current_time.to_msg()
 
-        # 1. TF: odom -> base_link
         t = TransformStamped()
         t.header.stamp = stamp
         t.header.frame_id = 'odom'
@@ -180,7 +157,6 @@ class UnifiedUgvNode(Node):
         t.transform.rotation.w = q[3]
         self.tf_broadcaster.sendTransform(t)
 
-        # 2. Odometry na /odom
         odom = Odometry()
         odom.header.stamp = stamp
         odom.header.frame_id = 'odom'
