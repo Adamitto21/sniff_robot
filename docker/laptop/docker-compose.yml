@@ -10,6 +10,8 @@ services:
       - QT_X11_NO_MITSHM=1
       - ROS_DOMAIN_ID=0
       - ROS_LOCALHOST_ONLY=0
+      - GAZEBO_MODEL_DATABASE_URI=""
+      - GDK_BACKEND=x11
       - LIBGL_ALWAYS_SOFTWARE=1
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
