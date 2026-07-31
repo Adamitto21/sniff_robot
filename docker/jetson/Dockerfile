@@ -36,7 +36,6 @@ RUN apt-get update && apt-get install -y \
     ros-humble-joint-state-publisher \
     ros-humble-urdf-tutorial \
     ros-humble-teleop-twist-keyboard \
-    ros-humble-gazebo-ros-pkgs \
 
     #paczki do strony internetowej
     ros-humble-rosbridge-suite \
