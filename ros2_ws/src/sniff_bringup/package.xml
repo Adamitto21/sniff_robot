@@ -2,15 +2,33 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>sniff_bringup</name>
-  <version>0.0.0</version>
+  <version>0.1</version>
   <description>Bringup: whole robot or individual parts</description>
   <maintainer email="root@todo.todo">root</maintainer>
   <license>TODO: License declaration</license>
 
+  <!--ODOMETRIA-->
+  <exec_depend>platform_control</exec_depend>
+
+  <!--LIDAR-->
   <exec_depend>sllidar_ros2</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
 
+  <!--KAMERA-->
+  <exec_depend>sniff_vision</exec_depend>
+
+  <!--CZUJNIKI-->
+  <exec_depend>sniff_sensors</exec_depend>
+
+  <!--STRONA-->
+  <exec_depend>rosbridge_server</exec_depend>
+  <exec_depend>rosapi</exec_depend>
+  <exec_depend>web_video_server</exec_depend>
+  
+  <exec_depend>sniff_msgs</exec_depend>
+
+  <exec_depend>ros2launch</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
 

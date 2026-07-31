@@ -16,7 +16,7 @@ const DEFAULT_CFG = {
   wsPort: 9090,
   videoPort: 8080,
   cmdVelTopic: '/cmd_vel',
-  cameraTopic: '/oak/rgb/image_raw',
+  cameraTopic: '/sniff/camera/image',
   mapTopic: '/map',
   poseTopic: '/pose',             // slam_toolbox publikuje PoseWithCovarianceStamped
   scanTopic: '/scan',
