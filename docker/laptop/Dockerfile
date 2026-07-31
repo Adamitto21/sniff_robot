@@ -46,7 +46,6 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip3 install depthai==2.24.0.0
 
-#dodadne testowo
 RUN mkdir -p /root/.gazebo/models && \
     git clone https://github.com/osrf/gazebo_models.git /root/.gazebo/models
 
