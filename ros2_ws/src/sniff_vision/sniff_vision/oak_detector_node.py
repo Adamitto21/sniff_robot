@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, Temperature
 from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithPose
 from cv_bridge import CvBridge
 import depthai as dai
@@ -29,7 +29,7 @@ class OakDetectorNode(Node):
         super().__init__('oak_detector')
         self.declare_parameter('blob_path', '')
         self.declare_parameter('confidence_threshold', 0.5)
-        self.declare_parameter('fps', 15)
+        self.declare_parameter('fps', 10)  # ZMIANA: bylo 15, obnizone do testow grzania
 
         blob_path = self.get_parameter('blob_path').value
         if not blob_path:
@@ -40,12 +40,16 @@ class OakDetectorNode(Node):
         fps = self.get_parameter('fps').value
 
         self.get_logger().info(f'Ladowanie modelu: {blob_path}')
+        self.get_logger().info(f'FPS: {fps}')
         self.pub_detections = self.create_publisher(Detection2DArray, '/detections', 10)
         self.pub_image = self.create_publisher(Image, '/sniff/camera/image', 10)
+        self.pub_depth = self.create_publisher(Image, '/sniff/camera/depth/preview', 10)
+        self.pub_temp = self.create_publisher(Temperature, '/sniff/camera/temperature', 10)
         self.bridge = CvBridge()
-        self.device, self.q_rgb, self.q_nn = self._build_pipeline(blob_path, fps)
+        self.device, self.q_rgb, self.q_nn, self.q_depth = self._build_pipeline(blob_path, fps)
         self.get_logger().info('Kamera i model gotowe')
         self.create_timer(1.0 / fps, self.process_frame)
+        self.create_timer(5.0, self.publish_temperature)
 
     def _build_pipeline(self, blob_path, fps):
         pipeline = dai.Pipeline()
@@ -85,14 +89,40 @@ class OakDetectorNode(Node):
         cam_rgb.preview.link(xout_rgb.input)
         nn.out.link(xout_nn.input)
 
+        # ================= GLEBIA (STEREO) =================
+        mono_left = pipeline.create(dai.node.MonoCamera)
+        mono_right = pipeline.create(dai.node.MonoCamera)
+        stereo = pipeline.create(dai.node.StereoDepth)
+        xout_depth = pipeline.createXLinkOut()
+        xout_depth.setStreamName("depth")
+
+        mono_left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_480_P)
+        mono_left.setBoardSocket(dai.CameraBoardSocket.LEFT)
+        mono_left.setFps(fps)  # ZMIANA: wczesniej brak - mono lecialo na domyslnych 30Hz
+
+        mono_right.setResolution(dai.MonoCameraProperties.SensorResolution.THE_480_P)
+        mono_right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
+        mono_right.setFps(fps)  # ZMIANA: jw.
+
+        stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
+        stereo.setLeftRightCheck(True)
+        stereo.setSubpixel(False)
+
+        mono_left.out.link(stereo.left)
+        mono_right.out.link(stereo.right)
+        stereo.depth.link(xout_depth.input)
+        # =======================================================
+
         device = dai.Device(pipeline)
         q_rgb = device.getOutputQueue("rgb", maxSize=4, blocking=False)
         q_nn = device.getOutputQueue("nn", maxSize=4, blocking=False)
-        return device, q_rgb, q_nn
+        q_depth = device.getOutputQueue("depth", maxSize=4, blocking=False)
+        return device, q_rgb, q_nn, q_depth
 
     def process_frame(self):
         in_rgb = self.q_rgb.tryGet()
         in_nn = self.q_nn.tryGet()
+        in_depth = self.q_depth.tryGet()
         if in_rgb is None:
             return
 
@@ -131,6 +161,29 @@ class OakDetectorNode(Node):
         img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
         img_msg.header = det_array.header
         self.pub_image.publish(img_msg)
+
+        if in_depth is not None:
+            depth_frame = in_depth.getFrame()
+            depth_clipped = np.clip(depth_frame, 200, 5000)
+            depth_vis = ((depth_clipped.astype(np.float32) - 200) / (5000 - 200) * 255).astype(np.uint8)
+            depth_colored = cv2.applyColorMap(depth_vis, cv2.COLORMAP_TURBO)
+            depth_colored[depth_frame == 0] = (0, 0, 0)
+
+            depth_msg = self.bridge.cv2_to_imgmsg(depth_colored, encoding='bgr8')
+            depth_msg.header = det_array.header
+            self.pub_depth.publish(depth_msg)
+
+    def publish_temperature(self):
+        try:
+            temp = self.device.getChipTemperature()
+            msg = Temperature()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = 'oak_camera'
+            msg.temperature = float(temp.average)
+            msg.variance = 0.0
+            self.pub_temp.publish(msg)
+        except Exception as e:
+            self.get_logger().warn(f'Nie udalo sie odczytac temperatury VPU: {e}')
 
 def main(args=None):
     rclpy.init(args=args)
