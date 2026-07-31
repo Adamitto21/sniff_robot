@@ -219,4 +219,75 @@
     </sensor>
   </gazebo>
 
+
+
+  <!--KAMERA GŁĘBI OAK-D LITE-->
+
+  <xacro:property name="cam_length" value="0.091"/>
+  <xacro:property name="cam_width"  value="0.028"/>
+  <xacro:property name="cam_height" value="0.018"/>
+  <xacro:property name="cam_mass"   value="0.061"/>
+
+  <link name="camera_link">
+    <visual>
+      <geometry>
+        <box size="${cam_length} ${cam_width} ${cam_height}"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${cam_length} ${cam_width} ${cam_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia m="${cam_mass}" w="${cam_width}" d="${cam_length}" h="${cam_height}"/>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <!-- montaż na przedniej krawędzi kadłuba, u góry -->
+    <origin xyz="${base_length/2} 0 ${base_height/2}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Ramka "optyczna" (konwencja ROS- Z do przodu) - wymagana żeby obraz/chmura punktów miały poprawną orientację -->
+  <link name="camera_link_optical"/>
+
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_link_optical"/>
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679"/>
+  </joint>
+
+  <gazebo reference="camera_link">
+    <material>Gazebo/Black</material>
+    <sensor type="depth" name="oak_d_lite_depth">
+      <update_rate>15</update_rate>
+      <camera>
+        <horizontal_fov>1.204</horizontal_fov> <!-- ~69 st. FOV RGB, OAK-D Lite -->
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>B8G8R8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+      </camera>
+      <plugin name="oak_d_lite_controller" filename="libgazebo_ros_camera.so">
+        <ros>
+          <namespace>sniff</namespace>
+          <remapping>image_raw:=camera/color/image_raw</remapping>
+          <remapping>camera_info:=camera/color/camera_info</remapping>
+          <remapping>depth/image_raw:=camera/depth/image_raw</remapping>
+          <remapping>points:=camera/depth/points</remapping>
+        </ros>
+        <frame_name>camera_link_optical</frame_name>
+        <min_depth>0.1</min_depth> # zmienić na 0.2 - w domyśle metry
+        <max_depth>50.0</max_depth> #zmienić na 12.0 bo takie są ograniczenia OAK-D lite kamery
+      </plugin>
+    </sensor>
+  </gazebo>
+
 </robot>

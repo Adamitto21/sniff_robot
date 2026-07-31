@@ -5,6 +5,7 @@ from launch.actions import IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch.substitutions import Command
+from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     robot_description_pkg = get_package_share_directory('robot_description')
@@ -14,6 +15,8 @@ def generate_launch_description():
 
 
     gazebo_pkg = get_package_share_directory('gazebo_ros')
+    world_file = os.path.join(robot_description_pkg, 'worlds', 'sniff_test_world.world')
+
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(gazebo_pkg, 'launch', 'gazebo.launch.py')),
         launch_arguments={'world': world_file}.items()
@@ -24,9 +27,9 @@ def generate_launch_description():
         executable='robot_state_publisher',
         output='screen',
         parameters=[{
-            'robot_description': Command(['xacro ', xacro_file]),
+            'robot_description': ParameterValue(Command(['xacro ', xacro_file]), value_type=str),
             'use_sim_time': True
-        }]
+    }]
     )
 
     spawn_entity = Node(
@@ -44,9 +47,12 @@ def generate_launch_description():
     )
 
     # 5. RVIZ2
+    rviz_config_file = os.path.join(robot_description_pkg, 'rviz_conf', 'config_rviz2.rviz')
+
     rviz2 = Node(
         package='rviz2',
         executable='rviz2',
+        arguments=['-d', rviz_config_file],
         output='screen',
         parameters=[{'use_sim_time': True}]
     )
