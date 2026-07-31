@@ -1,0 +1,9 @@
+std_msgs/Header header
+float32 pm1
+float32 pm25
+float32 pm10
+uint16 particles_03um
+uint16 particles_05um
+uint16 particles_10um
+uint16 particles_25um
+bool sensor_ok
