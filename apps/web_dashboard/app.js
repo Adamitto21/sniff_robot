@@ -7,6 +7,8 @@
 
 'use strict';
 
+const APP_VERSION = 'js v3';   // musi zgadzać się z 'html v3' w stopce
+
 /* ======================= KONFIGURACJA ======================= */
 
 const DEFAULT_CFG = {
@@ -14,7 +16,7 @@ const DEFAULT_CFG = {
   wsPort: 9090,
   videoPort: 8080,
   cmdVelTopic: '/cmd_vel',
-  cameraTopic: '/oak/rgb/image_raw',
+  cameraTopic: '/sniff/camera/image',
   mapTopic: '/map',
   poseTopic: '/pose',             // slam_toolbox publikuje PoseWithCovarianceStamped
   scanTopic: '/scan',
@@ -67,7 +69,7 @@ class RosBridge {
     this.ws = null;
     this.url = '';
     this.connected = false;
-    this.subs = new Map();      // topic -> {type, cb, throttle}
+    this.subs = new Map();      // topic -> {type, cbs:Set, throttle}
     this.adv = new Map();       // topic -> type
     this.svcCbs = new Map();    // id -> cb
     this.svcId = 0;
@@ -102,7 +104,9 @@ class RosBridge {
       try { d = JSON.parse(ev.data); } catch (e) { return; }
       if (d.op === 'publish') {
         const s = this.subs.get(d.topic);
-        if (s) s.cb(d.msg);
+        if (s) for (const cb of [...s.cbs]) {
+          try { cb(d.msg); } catch (err) { console.error('handler', d.topic, err); }
+        }
       } else if (d.op === 'service_response') {
         const cb = this.svcCbs.get(d.id);
         if (cb) { this.svcCbs.delete(d.id); cb(d.values, d.result); }
@@ -125,13 +129,34 @@ class RosBridge {
     if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(obj));
   }
 
+  /* Wielu odbiorców na jeden topic: karta czujnika, podgląd i panel wartości
+     mogą słuchać tego samego topicu naraz. unsubscribe(topic, cb) zdejmuje
+     tylko jednego z nich; subskrypcja znika, gdy nie zostanie żaden. */
   subscribe(topic, type, cb, throttle = 0) {
-    this.subs.set(topic, { type, cb, throttle });
-    this._send({ op: 'subscribe', topic, type, throttle_rate: throttle, queue_length: 1 });
+    let s = this.subs.get(topic);
+    if (!s) {
+      s = { type, cbs: new Set([cb]), throttle };
+      this.subs.set(topic, s);
+      const m = { op: 'subscribe', topic, throttle_rate: throttle, queue_length: 1 };
+      if (type) m.type = type;          // bez typu rosbridge odczyta go sam
+      this._send(m);
+    } else {
+      s.cbs.add(cb);
+      if (throttle && throttle < s.throttle) {
+        s.throttle = throttle;
+        this._send({ op: 'subscribe', topic, type: s.type, throttle_rate: throttle, queue_length: 1 });
+      }
+    }
+    return cb;
   }
-  unsubscribe(topic) {
-    this.subs.delete(topic);
-    this._send({ op: 'unsubscribe', topic });
+  unsubscribe(topic, cb) {
+    const s = this.subs.get(topic);
+    if (!s) return;
+    if (cb) s.cbs.delete(cb); else s.cbs.clear();
+    if (s.cbs.size === 0) {
+      this.subs.delete(topic);
+      this._send({ op: 'unsubscribe', topic });
+    }
   }
   advertise(topic, type) {
     this.adv.set(topic, type);
@@ -163,8 +188,84 @@ function toast(txt) {
   t._tm = setTimeout(() => t.classList.add('hidden'), 2200);
 }
 
+/* Ścieżka do pola: 'a.b.c' oraz indeksy tablic: 'data[3]', 'pose.position.x' */
 function getPath(obj, path) {
-  return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+  if (!path) return undefined;
+  return String(path).replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean)
+    .reduce((o, k) => (o == null ? undefined : o[k]), obj);
+}
+
+/* Agregat długiej tablicy — np. min z /scan ranges = najbliższa przeszkoda.
+   Pętla zamiast Math.min(...arr): tablice skanu mają setki elementów.
+   null/inf (brak echa lidara) są pomijane. */
+function aggregate(arr, agg) {
+  if (!Array.isArray(arr)) return undefined;
+  if (agg === 'len') return arr.length;
+  let n = 0, sum = 0, mn = Infinity, mx = -Infinity;
+  for (const v of arr) {
+    if (typeof v !== 'number' || !isFinite(v)) continue;
+    n++; sum += v;
+    if (v < mn) mn = v;
+    if (v > mx) mx = v;
+  }
+  if (!n) return undefined;
+  if (agg === 'min') return mn;
+  if (agg === 'max') return mx;
+  if (agg === 'avg') return sum / n;
+  return undefined;
+}
+
+/* Wartość karty czujnika z wiadomości */
+function resolveValue(msg, s) {
+  const raw = getPath(msg, s.field);
+  return s.agg ? aggregate(raw, s.agg) : raw;
+}
+
+/* Rozkłada wiadomość na listę pól nadających się na kartę.
+   Zagnieżdżenia schodzą po kropkach, krótkie tablice liczb dostają indeksy,
+   długie (np. ranges ze skanu) — agregat do wyboru. */
+function flattenMsg(obj, prefix, out, depth) {
+  out = out || []; depth = depth || 0; prefix = prefix || '';
+  if (depth > 5 || out.length > 150) return out;
+  for (const k in obj) {
+    if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+    const v = obj[k];
+    if (v === null || v === undefined) continue;
+    const path = prefix ? prefix + '.' + k : k;
+    const t = typeof v;
+    if (t === 'number' || t === 'boolean' || t === 'string') {
+      out.push({ path, kind: t });
+    } else if (Array.isArray(v)) {
+      // typ oceniamy po pierwszym NIE-null elemencie: w LaserScan brak echa
+      // to null i często trafia akurat na ranges[0]
+      let probe;
+      for (const el of v) { if (el !== null && el !== undefined) { probe = el; break; } }
+      if (typeof probe !== 'number') continue;    // pusta lub tablica obiektów
+      if (v.length <= 8) {
+        for (let i = 0; i < v.length; i++) out.push({ path: path + '[' + i + ']', kind: 'number' });
+      } else {
+        out.push({ path, kind: 'array', len: v.length });
+      }
+    } else if (t === 'object') {
+      flattenMsg(v, path, out, depth + 1);
+    }
+  }
+  return out;
+}
+
+/* Jednostka zgadywana z nazwy pola — działa też dla własnych wiadomości */
+const UNIT_BY_NAME = [
+  [/(^|_)e?co2($|_)/i, 'ppm'], [/tvoc|voc/i, 'ppb'], [/pm_?(1|2_?5|10)/i, 'µg/m³'],
+  [/temp/i, '°C'], [/humid/i, '%'], [/pressure/i, 'Pa'], [/volt/i, 'V'],
+  [/current/i, 'A'], [/percent/i, '%'], [/range|distance/i, 'm'], [/illum|lux/i, 'lx'],
+];
+function guessUnit(path) {
+  const leaf = path.split('.').pop();
+  for (const [re, u] of UNIT_BY_NAME) if (re.test(leaf)) return u;
+  return '';
+}
+function defaultLabel(path) {
+  return path.split('.').pop().replace(/\[(\d+)\]/, ' $1').replace(/_/g, ' ');
 }
 
 function fmtVal(v) {
@@ -567,7 +668,7 @@ function syncScanSub() {
   if (showScan) {
     ros.subscribe(cfg.scanTopic, 'sensor_msgs/msg/LaserScan', onScanMsg, 400);
   } else {
-    ros.unsubscribe(cfg.scanTopic);
+    ros.unsubscribe(cfg.scanTopic, onScanMsg);   // tylko nakładka, nie karty czujników
     scanPts = null;
   }
 }
@@ -598,9 +699,10 @@ function buildSensors() {
       `<div class="s-val">—<span class="s-unit"></span></div>` +
       `<canvas width="140" height="30"></canvas>` +
       `<div class="s-topic mono"></div>`;
-    card.querySelector('.s-label').textContent = s.label || s.topic;
+    card.querySelector('.s-label').textContent = s.label || s.field || s.topic;
     card.querySelector('.s-unit').textContent = s.unit ? ' ' + s.unit : '';
-    card.querySelector('.s-topic').textContent = s.topic;
+    card.querySelector('.s-topic').textContent =
+      s.topic + (s.field ? ' · ' + (s.agg ? s.agg + '(' + s.field + ')' : s.field) : '');
     card.querySelector('.s-del').addEventListener('click', () => {
       cfg.sensors.splice(idx, 1);
       saveCfg();
@@ -616,7 +718,7 @@ function buildSensors() {
     let lastMsg = 0;
 
     const update = (msg) => {
-      const v = getPath(msg, s.field || 'data');
+      const v = resolveValue(msg, s);
       valEl.innerHTML = '';
       valEl.appendChild(document.createTextNode(fmtVal(v)));
       const u = document.createElement('span');
@@ -639,19 +741,31 @@ function buildSensors() {
     sensorHandlers.get(s.topic).add(update);
   });
 
-  // subskrypcje: jedna na topic
+}
+
+/* Jedna subskrypcja na topic, trzymana między przebudowami kart.
+   Dispatcher czyta sensorHandlers dopiero przy wiadomości, więc przeżywa rebuild. */
+const sensorDispatch = new Map();   // topic -> fn
+
+function syncSensorSubs() {
+  for (const [topic, fn] of [...sensorDispatch]) {
+    if (!sensorHandlers.has(topic)) {          // ostatnia karta z topicu zniknęła
+      ros.unsubscribe(topic, fn);
+      sensorDispatch.delete(topic);
+    }
+  }
   for (const topic of sensorHandlers.keys()) {
+    if (sensorDispatch.has(topic)) continue;
     const s = cfg.sensors.find((x) => x.topic === topic);
-    ros.subscribe(topic, s.type, sensorSubDispatch(topic), 250);
+    const fn = sensorSubDispatch(topic);
+    sensorDispatch.set(topic, fn);
+    ros.subscribe(topic, s.type, fn, 250);
   }
 }
 
 function rebuildSensorSubs() {
-  // odsubskrybuj topiki czujników, których już nie ma
-  for (const topic of [...sensorHandlers.keys()]) {
-    if (!cfg.sensors.some((s) => s.topic === topic)) ros.unsubscribe(topic);
-  }
   buildSensors();
+  syncSensorSubs();
 }
 
 function drawSpark(ctx, cv, hist) {
@@ -678,7 +792,7 @@ setInterval(() => {
 
 /* ======================= PRZEGLĄDARKA TOPIKÓW ======================= */
 
-let previewTopic = null, previewHadSub = null;
+let previewTopic = null, previewCb = null;
 
 function openTopics() {
   $('modalTopics').classList.remove('hidden');
@@ -707,7 +821,6 @@ function refreshTopics() {
       row.className = 'topic-row';
       const isTwist = r.type.indexOf('Twist') !== -1;
       const isImage = r.type.indexOf('/Image') !== -1 || r.type.indexOf('CompressedImage') !== -1;
-      const isSensorish = FIELD_GUESS[r.type] !== undefined;
       if (isTwist || isImage) row.classList.add('hl');
 
       const name = document.createElement('span');
@@ -727,6 +840,7 @@ function refreshTopics() {
         row.appendChild(b);
       };
       mkBtn('podgląd', () => previewStart(r.topic, r.type));
+      mkBtn('+ czujnik', () => fieldsStart(r.topic, r.type));
       if (isTwist) mkBtn('→ sterowanie', () => {
         cfg.cmdVelTopic = r.topic; saveCfg();
         toast('Sterowanie → ' + r.topic);
@@ -737,8 +851,6 @@ function refreshTopics() {
         toast('Kamera → ' + cfg.cameraTopic);
         applyCamera();
       });
-      if (isSensorish) mkBtn('+ czujnik', () => addSensorFromTopic(r.topic, r.type));
-
       list.appendChild(row);
     }
   });
@@ -748,55 +860,184 @@ function previewStart(topic, type) {
   previewStop();
   previewTopic = topic;
   $('topicPreviewWrap').classList.remove('hidden');
-  $('topicPreviewTitle').textContent = topic + '  [' + type + ']';
+  $('topicPreviewTitle').textContent = topic + (type ? '  [' + type + ']' : '');
   $('topicPreview').textContent = 'oczekiwanie na wiadomość…';
-
-  const existing = ros.subs.get(topic);
-  previewHadSub = existing || null;
-  const show = (msg) => {
+  previewCb = ros.subscribe(topic, type, (msg) => {
     let txt;
     try { txt = JSON.stringify(msg, null, 1); } catch (e) { txt = String(msg); }
     if (txt.length > 6000) txt = txt.slice(0, 6000) + '\n…';
     $('topicPreview').textContent = txt;
-  };
-  if (existing) {
-    // dopinamy podgląd do istniejącej subskrypcji, nie psując jej
-    const orig = existing.cb;
-    existing.cb = (msg) => { orig(msg); show(msg); };
-    existing._origCb = orig;
-  } else {
-    ros.subscribe(topic, type, show, 300);
-  }
+  }, 300);
+  $('topicPreviewWrap').scrollIntoView({ block: 'nearest' });
 }
 
 function previewStop() {
-  if (!previewTopic) return;
-  const s = ros.subs.get(previewTopic);
-  if (previewHadSub && s && s._origCb) {
-    s.cb = s._origCb;
-    delete s._origCb;
-  } else if (!previewHadSub) {
-    ros.unsubscribe(previewTopic);
-  }
+  if (previewTopic) ros.unsubscribe(previewTopic, previewCb);
   previewTopic = null;
-  previewHadSub = null;
+  previewCb = null;
   $('topicPreviewWrap').classList.add('hidden');
 }
 
-function addSensorFromTopic(topic, type) {
-  const label = prompt('Nazwa czujnika (etykieta na karcie):', topic.split('/').pop());
-  if (label === null) return;
-  const unit = prompt('Jednostka (np. ppm, °C — może być puste):', '') || '';
-  cfg.sensors.push({ topic, type, label: label || topic, unit, field: FIELD_GUESS[type] || 'data' });
+/* ---------- panel: wartości wszystkich zmiennych topicu ---------- */
+
+let fieldsTopic = null, fieldsCb = null, fieldsRows = new Map(), fieldsGot = false;
+let fieldsTypeCache = '';   // typ z listy topików — do podpowiedzi domyślnego pola
+
+function fieldsStart(topic, type) {
+  fieldsStop();
+  previewStop();
+  const mt = $('modalTopics');
+  if (mt) mt.classList.add('hidden');   // panel jest na stronie głównej — okno zbędne
+  fieldsTopic = topic;
+  fieldsTypeCache = type || '';
+  fieldsGot = false;
+  fieldsRows.clear();
+  $('fieldsWrap').classList.remove('hidden');
+  $('sensorsEmpty').classList.add('hidden');
+  $('fieldsTitle').textContent = topic + (type ? '  [' + type + ']' : '');
+  $('fieldsList').innerHTML =
+    '<div class="small" style="padding:10px">oczekiwanie na wiadomość z tego topicu…</div>';
+  $('btnFieldsAdd').disabled = true;
+  fieldsCb = ros.subscribe(topic, type, onFieldsMsg, 300);
+  $('fieldsWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function onFieldsMsg(msg) {
+  if (!fieldsTopic) return;
+  if (!fieldsGot) {
+    fieldsGot = true;
+    buildFieldRows(msg);
+    $('btnFieldsAdd').disabled = false;
+  }
+  // wartości na żywo — widać, które pole reaguje na czujnik
+  for (const [path, row] of fieldsRows) {
+    const v = row.agg ? aggregate(getPath(msg, path), row.agg.value) : getPath(msg, path);
+    row.val.textContent = fmtVal(v);
+  }
+}
+
+function buildFieldRows(msg) {
+  const list = $('fieldsList');
+  list.innerHTML = '';
+  fieldsRows.clear();
+
+  const fields = flattenMsg(msg);
+  if (!fields.length) {
+    list.innerHTML = '<div class="small" style="padding:10px">' +
+      'W tej wiadomości nie ma pól, które da się pokazać na karcie.</div>';
+    return;
+  }
+
+  const guess = FIELD_GUESS[fieldsTypeCache] || null;
+
+  for (const f of fields) {
+    const row = document.createElement('div');
+    row.className = 'field-row';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    if (guess && f.path === guess) cb.checked = true;
+
+    const name = document.createElement('span');
+    name.className = 'f-name mono';
+    name.textContent = f.path + (f.kind === 'array' ? ' [' + f.len + ']' : '');
+
+    const val = document.createElement('span');
+    val.className = 'f-val mono';
+    val.textContent = '…';
+
+    const opts = document.createElement('div');
+    opts.className = 'f-opts';
+
+    let agg = null;
+    if (f.kind === 'array') {
+      agg = document.createElement('select');
+      for (const [v, t] of [['min', 'min'], ['max', 'max'], ['avg', 'średnia'], ['len', 'ilość']]) {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = t;
+        agg.appendChild(o);
+      }
+      opts.appendChild(agg);
+    }
+    const lab = document.createElement('input');
+    lab.className = 'f-lab';
+    lab.placeholder = 'etykieta';
+    lab.value = defaultLabel(f.path);
+    const unit = document.createElement('input');
+    unit.className = 'f-unit';
+    unit.placeholder = 'jedn.';
+    unit.value = guessUnit(f.path);
+    opts.appendChild(lab);
+    opts.appendChild(unit);
+
+    row.appendChild(cb);
+    row.appendChild(name);
+    row.appendChild(val);
+    row.appendChild(opts);
+
+    // klik w wiersz przełącza zaznaczenie (wygodniej na telefonie)
+    row.addEventListener('click', (e) => {
+      const t = e.target.tagName;
+      if (t === 'INPUT' || t === 'SELECT' || t === 'OPTION') return;
+      cb.checked = !cb.checked;
+    });
+
+    fieldsRows.set(f.path, { cb, val, lab, unit, agg });
+    list.appendChild(row);
+  }
+}
+
+function fieldsAdd() {
+  if (!fieldsTopic) return;
+  const picked = [];
+  for (const [path, row] of fieldsRows) {
+    if (!row.cb.checked) continue;
+    picked.push({
+      topic: fieldsTopic,
+      type: fieldsTypeCache || undefined,
+      field: path,
+      label: row.lab.value.trim() || defaultLabel(path),
+      unit: row.unit.value.trim(),
+      agg: row.agg ? row.agg.value : null,
+    });
+  }
+  if (!picked.length) { toast('Zaznacz przynajmniej jedno pole'); return; }
+  for (const p of picked) {
+    const dup = cfg.sensors.some((s) => s.topic === p.topic && s.field === p.field && s.agg === p.agg);
+    if (!dup) cfg.sensors.push(p);
+  }
   saveCfg();
+  fieldsStop();
   rebuildSensorSubs();
-  toast('Dodano czujnik: ' + (label || topic));
+  toast(picked.length === 1 ? 'Dodano: ' + picked[0].label : 'Dodano kart: ' + picked.length);
+}
+
+function fieldsStop() {
+  if (fieldsTopic) ros.unsubscribe(fieldsTopic, fieldsCb);
+  fieldsTopic = null;
+  fieldsCb = null;
+  fieldsRows.clear();
+  fieldsGot = false;
+  $('fieldsWrap').classList.add('hidden');
+  $('sensorsEmpty').classList.toggle('hidden', cfg.sensors.length > 0);
 }
 
 $('btnTopics').addEventListener('click', openTopics);
 $('btnAddSensor').addEventListener('click', openTopics);
 $('btnTopicsRefresh').addEventListener('click', refreshTopics);
 $('btnPreviewClose').addEventListener('click', previewStop);
+$('btnFieldsClose').addEventListener('click', fieldsStop);
+$('btnFieldsAdd').addEventListener('click', fieldsAdd);
+
+/* Dodawanie wprost z panelu Czujniki — bez okna i bez rosapi */
+function addFromPanel() {
+  let t = $('addTopic').value.trim();
+  if (!t) { toast('Wpisz nazwę topicu'); return; }
+  if (t[0] !== '/') t = '/' + t;        // ROS2 wymaga wiodącego ukośnika
+  fieldsStart(t, null);                 // typ wykryje rosbridge
+}
+$('addGo').addEventListener('click', addFromPanel);
+$('addTopic').addEventListener('keydown', (e) => { if (e.key === 'Enter') addFromPanel(); });
 
 /* ======================= USTAWIENIA ======================= */
 
@@ -833,19 +1074,15 @@ $('btnCfgReset').addEventListener('click', () => {
 });
 
 /* zamykanie modali */
+function closeModal(id) {
+  if (id === 'modalTopics') { previewStop(); fieldsStop(); }
+  $(id).classList.add('hidden');
+}
 document.querySelectorAll('[data-close]').forEach((b) => {
-  b.addEventListener('click', () => {
-    if (b.dataset.close === 'modalTopics') previewStop();
-    $(b.dataset.close).classList.add('hidden');
-  });
+  b.addEventListener('click', () => closeModal(b.dataset.close));
 });
 document.querySelectorAll('.modal').forEach((m) => {
-  m.addEventListener('pointerdown', (e) => {
-    if (e.target === m) {
-      if (m.id === 'modalTopics') previewStop();
-      m.classList.add('hidden');
-    }
-  });
+  m.addEventListener('pointerdown', (e) => { if (e.target === m) closeModal(m.id); });
 });
 
 /* ======================= START ======================= */
@@ -861,6 +1098,8 @@ function applyCamera() {
 
 function init() {
   $('footUrl').textContent = WS_URL;
+  const av = $('appVer');
+  if (av) av.textContent = APP_VERSION;
   $('mapTopicHint').textContent = cfg.mapTopic;
   const link = $('camServerLink');
   link.href = VIDEO_BASE;
@@ -872,7 +1111,7 @@ function init() {
   ros.subscribe(cfg.mapTopic, 'nav_msgs/msg/OccupancyGrid', onMapMsg, 2000);
   ros.subscribe(cfg.poseTopic, 'geometry_msgs/msg/PoseWithCovarianceStamped', onPoseMsg, 200);
   syncScanSub();
-  buildSensors();
+  rebuildSensorSubs();
   sizeMapCanvas();
 
   ros.connect(WS_URL);

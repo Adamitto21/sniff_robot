@@ -11,9 +11,8 @@ def generate_launch_description():
     robot_description_pkg = get_package_share_directory('robot_description')
     
     xacro_file = os.path.join(robot_description_pkg, 'urdf', 'robot.urdf.xacro')
-
+    world_file = os.path.join(robot_description_pkg, 'worlds', 'sniff_indoor.world')
     gazebo_pkg = get_package_share_directory('gazebo_ros')
-    world_file = os.path.join(robot_description_pkg, 'worlds', 'sniff_test_world.world')
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(gazebo_pkg, 'launch', 'gazebo.launch.py')),
@@ -33,7 +32,8 @@ def generate_launch_description():
     spawn_entity = Node(
         package='gazebo_ros',
         executable='spawn_entity.py',
-        arguments=['-topic', 'robot_description', '-entity', 'my_six_wheeler'],
+        arguments=['-topic', 'robot_description', '-entity', 'my_six_wheeler', '-x', '-4.0', '-y', '0.0', '-z', '0.10',
+                           '-Y', '0.0'],
         output='screen',
     )
 
