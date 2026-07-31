@@ -12,10 +12,7 @@ def generate_launch_description():
     
     xacro_file = os.path.join(robot_description_pkg, 'urdf', 'robot.urdf.xacro')
     world_file = os.path.join(robot_description_pkg, 'worlds', 'sniff_indoor.world')
-
-
     gazebo_pkg = get_package_share_directory('gazebo_ros')
-    world_file = os.path.join(robot_description_pkg, 'worlds', 'sniff_test_world.world')
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(gazebo_pkg, 'launch', 'gazebo.launch.py')),
