@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y \
     ros-humble-navigation2 \
     ros-humble-nav2-bringup \
     ros-humble-pointcloud-to-laserscan \
+    ros-humble-diagnostic-updater \
 
     #paczki do symulacji
     ros-humble-xacro \
