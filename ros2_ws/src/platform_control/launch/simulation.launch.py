@@ -38,9 +38,14 @@ def generate_launch_description():
     )
 
     slam_toolbox_pkg = get_package_share_directory('slam_toolbox')
+    slam_params_file = os.path.join(robot_description_pkg, 'config', 'slam_params_sim.yaml')
+
     slam_toolbox = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(slam_toolbox_pkg, 'launch', 'online_async_launch.py')),
-        launch_arguments={'use_sim_time': 'true'}.items()
+        launch_arguments={
+            'use_sim_time': 'true',
+            'slam_params_file': slam_params_file,
+        }.items()
     )
 
     # 5. RVIZ2
@@ -59,7 +64,7 @@ def generate_launch_description():
         robot_state_publisher,
         spawn_entity,
         TimerAction(
-            period=3.0,
+            period=10.0,
             actions=[slam_toolbox, rviz2]
         )
     ])
