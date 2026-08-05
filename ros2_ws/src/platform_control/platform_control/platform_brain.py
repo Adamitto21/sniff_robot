@@ -28,11 +28,27 @@ class UnifiedUgvNode(Node):
         self.declare_parameter('meters_per_tick', 0.0105)
         self.declare_parameter('max_tick_delta', 100)
 
+        # ZMIANA 1: prog martwej strefy jako parametr (bylo zahardkodowane 0.2).
+        # 0.2 rad/s blokowalo Nav2 - DWB wysyla drobne korekty podczas RotateToGoal.
+        self.declare_parameter('min_angular_cmd', 0.08)
+
+        # ZMIANA 2: ramki TF jako parametry (bylo zahardkodowane 'odom'/'base_link').
+        # base_footprint zgadza sie z URDF, symulacja i nav2_params.yaml.
+        self.declare_parameter('odom_frame', 'odom')
+        self.declare_parameter('base_frame', 'base_footprint')
+
+        # ZMIANA 3: timeout watchdoga /cmd_vel jako parametr.
+        self.declare_parameter('cmd_vel_timeout', 0.5)
+
         self.serial_port = self.get_parameter('serial_port').value
         baudrate = self.get_parameter('baudrate').value
         self.track_width = self.get_parameter('track_width').value
         self.mpt = self.get_parameter('meters_per_tick').value
         self.max_tick_delta = self.get_parameter('max_tick_delta').value
+        self.min_angular_cmd = self.get_parameter('min_angular_cmd').value      # ZMIANA 1
+        self.odom_frame = self.get_parameter('odom_frame').value                # ZMIANA 2
+        self.base_frame = self.get_parameter('base_frame').value                # ZMIANA 2
+        self.cmd_vel_timeout = self.get_parameter('cmd_vel_timeout').value      # ZMIANA 3
 
         self.x = 0.0
         self.y = 0.0
@@ -58,6 +74,13 @@ class UnifiedUgvNode(Node):
         self.enable_feedback_stream()
         self.create_timer(5.0, self.enable_feedback_stream)
 
+        # ZMIANA 3: watchdog /cmd_vel - zatrzymuje robota gdy Nav2 przestanie
+        # publikowac (osiagniety cel, awaria, zerwana siec). Bez tego firmware
+        # trzyma ostatnia komende i robot jedzie dalej.
+        self.last_cmd_time = self.get_clock().now()
+        self.stopped = True
+        self.create_timer(0.2, self.cmd_watchdog)
+
         # --- Watek odczytu UART ---
         self.running = True
         self.read_thread = threading.Thread(target=self.uart_receive_loop, daemon=True)
@@ -73,18 +96,30 @@ class UnifiedUgvNode(Node):
         # CMD_BASE_FEEDBACK_FLOW = 131, cmd=1 -> ciagly strumien ramek T:1001
         self._send({'T': 131, 'cmd': 1})
 
+    # ZMIANA 3: nowa metoda
+    def cmd_watchdog(self):
+        dt = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
+        if dt > self.cmd_vel_timeout and not self.stopped:
+            self._send({'T': 13, 'X': 0.0, 'Z': 0.0})
+            self.stopped = True
+            self.get_logger().warn(
+                f"Brak /cmd_vel przez {dt:.1f}s - STOP")
+
     def cmd_vel_callback(self, msg):
+        self.last_cmd_time = self.get_clock().now()   # ZMIANA 3
+        self.stopped = False                          # ZMIANA 3
+
         linear_velocity = msg.linear.x
         angular_velocity = msg.angular.z
 
-        if linear_velocity == 0:
-            if 0 < angular_velocity < 0.2:
-                angular_velocity = 0.2
-            elif -0.2 < angular_velocity < 0:
-                angular_velocity = -0.2
+        # ZMIANA 1: bylo sztywne podbicie do 0.2 rad/s w dwoch galeziach if/elif.
+        # Teraz parametr + copysign - dziala symetrycznie i pozwala Nav2
+        # na drobne korekty katowe.
+        if abs(linear_velocity) < 1e-6 and 1e-6 < abs(angular_velocity) < self.min_angular_cmd:
+            angular_velocity = math.copysign(self.min_angular_cmd, angular_velocity)
 
         # T:13 = CMD_ROS_CTRL (int). X=liniowa [m/s], Z=katowa [rad/s]
-        self._send({'T': 13, 'X': linear_velocity, 'Z': angular_velocity})
+        self._send({'T': 13, 'X': float(linear_velocity), 'Z': float(angular_velocity)})
 
     def uart_receive_loop(self):
         while self.running and rclpy.ok():
@@ -146,8 +181,8 @@ class UnifiedUgvNode(Node):
 
         t = TransformStamped()
         t.header.stamp = stamp
-        t.header.frame_id = 'odom'
-        t.child_frame_id = 'base_link'
+        t.header.frame_id = self.odom_frame      # ZMIANA 2: bylo 'odom'
+        t.child_frame_id = self.base_frame       # ZMIANA 2: bylo 'base_link'
         t.transform.translation.x = self.x
         t.transform.translation.y = self.y
         t.transform.translation.z = 0.0
@@ -159,8 +194,8 @@ class UnifiedUgvNode(Node):
 
         odom = Odometry()
         odom.header.stamp = stamp
-        odom.header.frame_id = 'odom'
-        odom.child_frame_id = 'base_link'
+        odom.header.frame_id = self.odom_frame   # ZMIANA 2: bylo 'odom'
+        odom.child_frame_id = self.base_frame    # ZMIANA 2: bylo 'base_link'
         odom.pose.pose.position.x = self.x
         odom.pose.pose.position.y = self.y
         odom.pose.pose.orientation.x = q[0]
@@ -181,7 +216,11 @@ class UnifiedUgvNode(Node):
     def shutdown(self):
         self.get_logger().info("Zamykanie wezla...")
         self.running = False
+        # ZMIANA 4: jawny STOP przed zamknieciem portu. Bez tego firmware
+        # trzyma ostatnia komende po zabiciu wezla.
         try:
+            self._send({'T': 13, 'X': 0.0, 'Z': 0.0})
+            time.sleep(0.1)
             self._send({'T': 131, 'cmd': 0})  # wylacz strumien feedbacku
         except Exception:
             pass

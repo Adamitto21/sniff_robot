@@ -10,6 +10,10 @@
   <exec_depend>sllidar_ros2</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>robot_description</exec_depend>
+  <exec_depend>platform_control</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
