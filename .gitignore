@@ -13,3 +13,16 @@ __pycache__/
 .DS_Store
 temp/
 ros2_ws/.cache/
+
+# firmware — klon repo producenta i binarki
+firmware/ugv_base_general/
+firmware/backup/
+firmware/factory/
+firmware/rozpakowane/
+firmware/*.zip
+firmware/*.bin
+
+# dane pomiarowe i cache
+tools/pid/*.csv
+tools/pid/*.png
+tools/pid/__pycache__/
