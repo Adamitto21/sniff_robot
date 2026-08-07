@@ -16,7 +16,7 @@ def generate_launch_description():
     ugv_port = LaunchConfiguration('ugv_port')
 
     declare_serial_port = DeclareLaunchArgument(
-        'serial_port', default_value='/dev/ttyUSB0',
+        'serial_port', default_value='/dev/ttyUSB1',
         description='Port szeregowy lidaru')
     declare_serial_baudrate = DeclareLaunchArgument(
         'serial_baudrate', default_value='115200',
@@ -62,9 +62,9 @@ def generate_launch_description():
             'serial_port': ugv_port,
             'odom_frame': 'odom',
             'base_frame': 'base_footprint',
-            'track_width': 0.44,
-            'meters_per_tick': 0.0105,
-            'min_angular_cmd': 0.08,
+            'track_width': 0.40,
+            'meters_per_tick': 0.00895,
+            'min_angular_cmd': 0.30,
             'cmd_vel_timeout': 0.5,
         }]
     )
@@ -105,11 +105,21 @@ def generate_launch_description():
         ]
     )
 
+    # Stany jointow kol - bez tego RViz nie renderuje modelu
+    joint_state_publisher = Node(
+        package='joint_state_publisher',
+        executable='joint_state_publisher',
+        name='joint_state_publisher',
+        parameters=[{'use_sim_time': False}],
+        output='screen',
+    )
+
     return LaunchDescription([
         declare_serial_port,
         declare_serial_baudrate,
         declare_ugv_port,
         robot_state_publisher,
+        joint_state_publisher,
         unified_ugv,
         sllidar,
         slam_toolbox,

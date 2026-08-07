@@ -24,13 +24,13 @@ class UnifiedUgvNode(Node):
         super().__init__('unified_ugv_node')
         self.declare_parameter('serial_port', '/dev/ttyCH343USB0')
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('track_width', 0.44)
-        self.declare_parameter('meters_per_tick', 0.0105)
+        self.declare_parameter('track_width', 0.40)
+        self.declare_parameter('meters_per_tick', 0.00895)
         self.declare_parameter('max_tick_delta', 100)
 
         # ZMIANA 1: prog martwej strefy jako parametr (bylo zahardkodowane 0.2).
         # 0.2 rad/s blokowalo Nav2 - DWB wysyla drobne korekty podczas RotateToGoal.
-        self.declare_parameter('min_angular_cmd', 0.08)
+        self.declare_parameter('min_angular_cmd', 0.30)
 
         # ZMIANA 2: ramki TF jako parametry (bylo zahardkodowane 'odom'/'base_link').
         # base_footprint zgadza sie z URDF, symulacja i nav2_params.yaml.
@@ -55,6 +55,8 @@ class UnifiedUgvNode(Node):
         self.th = 0.0
         self.odl_prev = None
         self.odr_prev = None
+        # ZMIANA 5: znacznik czasu ostatniej ramki - do liczenia predkosci
+        self.last_odom_time = None
 
         try:
             self.ser = serial.Serial(self.serial_port, baudrate, timeout=1)
@@ -171,10 +173,21 @@ class UnifiedUgvNode(Node):
         self.th += d_theta
         self.th = math.atan2(math.sin(self.th), math.cos(self.th))  # normalizacja (-pi, pi]
 
-        v_left = float(data.get("L", 0.0))
-        v_right = float(data.get("R", 0.0))
-        v = (v_right + v_left) / 2.0
-        w = (v_right - v_left) / self.track_width
+        # ZMIANA 5: predkosc liczona z przyrostu tickow i czasu, nie z pol L/R.
+        # Pola L/R z firmware sa binarne (0 albo ~0.3808) - to flaga "byl tick
+        # w tym oknie", a nie ciagly odczyt predkosci. Nav2 dostawalo z tego szum.
+        if self.last_odom_time is not None:
+            dt = (current_time - self.last_odom_time).nanoseconds / 1e9
+        else:
+            dt = 0.0
+        self.last_odom_time = current_time
+
+        if dt > 0.001:
+            v = d_center / dt
+            w = d_theta / dt
+        else:
+            v = 0.0
+            w = 0.0
 
         q = euler_to_quaternion(0, 0, self.th)
         stamp = current_time.to_msg()
