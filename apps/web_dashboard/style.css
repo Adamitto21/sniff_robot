@@ -279,3 +279,10 @@ footer{padding:8px 16px 18px;text-align:center;font-size:11px;color:var(--muted)
 .fields-h{display:flex;justify-content:space-between;align-items:center;gap:8px;
   padding:9px 12px;border-bottom:1px solid var(--line)}
 .fields-h #fieldsTitle{color:var(--acc);word-break:break-all}
+
+/* ---------- progi ostrzegawcze na kartach (bateria) ---------- */
+.sensor-card.warn{border-color:var(--amber)}
+.sensor-card.warn .s-val{color:var(--amber)}
+.sensor-card.crit{border-color:var(--danger);background:#241619}
+.sensor-card.crit .s-val{color:var(--danger)}
+.sensor-card.crit .s-label{color:var(--danger)}

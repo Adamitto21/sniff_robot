@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>SNIFF ROBOT — panel sterowania</title>
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 
@@ -31,7 +31,11 @@
   <section class="panel area-cam">
     <div class="panel-h">
       <span class="panel-t">Kamera</span>
-      <span id="camTopicBadge" class="badge mono"></span>
+      <span class="panel-actions">
+        <span id="camTopicBadge" class="badge mono"></span>
+        <button id="btnCamRgb" class="btn btn-sm on" title="Obraz RGB">RGB</button>
+        <button id="btnCamDepth" class="btn btn-sm" title="Mapa głębi">głębia</button>
+      </span>
     </div>
     <div class="cam-wrap">
       <img id="camImg" alt="Obraz z kamery robota">
@@ -105,7 +109,10 @@
   <section class="panel area-sensors">
     <div class="panel-h">
       <span class="panel-t">Czujniki</span>
-      <button id="btnAddSensor" class="btn btn-sm">+ dodaj</button>
+      <span class="panel-actions">
+        <button id="addBattery" class="btn btn-sm" title="Dodaj karty napięcia i baterii">⚡ zasilanie</button>
+        <button id="btnAddSensor" class="btn btn-sm">+ dodaj</button>
+      </span>
     </div>
     <div class="add-row">
       <input id="addTopic" class="mono" placeholder="/sniff/air_quality" spellcheck="false">
@@ -134,7 +141,7 @@
 
 </main>
 
-<footer>sniff_robot · rosbridge <span id="footUrl" class="mono"></span> · <span class="mono">html v3</span> · <span id="appVer" class="mono">js ?</span></footer>
+<footer>sniff_robot · rosbridge <span id="footUrl" class="mono"></span> · <span class="mono">html v5</span> · <span id="appVer" class="mono">js ?</span></footer>
 
 <!-- STOP zawsze pod ręką (mobile) -->
 <button id="stopFab" title="Zatrzymaj robota">STOP</button>
@@ -177,12 +184,18 @@
         <label>Port wideo<input id="f_videoPort" type="number"></label>
       </div>
       <label>Topic sterowania (Twist)<input id="f_cmdVelTopic" class="mono"></label>
-      <label>Topic kamery (Image)<input id="f_cameraTopic" class="mono"></label>
+      <div class="form-2">
+        <label>Topic kamery RGB<input id="f_cameraTopic" class="mono"></label>
+        <label>Topic głębi<input id="f_depthTopic" class="mono"></label>
+      </div>
       <div class="form-2">
         <label>Topic mapy<input id="f_mapTopic" class="mono"></label>
         <label>Topic pozycji<input id="f_poseTopic" class="mono"></label>
       </div>
-      <label>Topic skanu lidara<input id="f_scanTopic" class="mono"></label>
+      <div class="form-2">
+        <label>Topic skanu lidara<input id="f_scanTopic" class="mono"></label>
+        <label>Topic zasilania<input id="f_batteryTopic" class="mono"></label>
+      </div>
       <div class="form-btns">
         <button id="btnCfgReset" class="btn">przywróć domyślne</button>
         <button id="btnCfgSave" class="btn btn-primary">Zapisz i przeładuj</button>
@@ -193,6 +206,6 @@
 
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=3" defer></script>
+<script src="app.js?v=5" defer></script>
 </body>
 </html>
