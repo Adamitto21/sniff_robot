@@ -10,7 +10,6 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
-    # --- Argumenty ---
     serial_port = LaunchConfiguration('serial_port')
     serial_baudrate = LaunchConfiguration('serial_baudrate')
     ugv_port = LaunchConfiguration('ugv_port')
@@ -25,17 +24,12 @@ def generate_launch_description():
         'ugv_port', default_value='/dev/ttyCH343USB0',
         description='Port szeregowy ESP32 (platforma UGV02)')
 
-    # --- Sciezki do pakietow ---
     sllidar_share = get_package_share_directory('sllidar_ros2')
     slam_toolbox_share = get_package_share_directory('slam_toolbox')
     robot_description_share = get_package_share_directory('robot_description')
-
     xacro_file = os.path.join(robot_description_share, 'urdf', 'robot.urdf.xacro')
     slam_params = os.path.join(robot_description_share, 'config', 'slam_params_hw.yaml')
 
-    # 1. Model robota z URDF
-    #    ZMIANA: zastepuje statyczne TF base_link->laser.
-    #    Nav2 i costmapa potrzebuja pelnej geometrii robota.
     robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
@@ -48,10 +42,6 @@ def generate_launch_description():
         }]
     )
 
-    # 2. Sterowanie platforma + odometria z enkoderow
-    #    ZMIANA: zastepuje statyczne TF odom->base_link (transformata
-    #    tozsamosciowa oznaczala, ze robot nigdy sie nie porusza - Nav2 na tym
-    #    nie ruszy). Teraz odom->base_footprint z rzeczywistej odometrii.
     unified_ugv = Node(
         package='platform_control',
         executable='odometry',
@@ -69,9 +59,6 @@ def generate_launch_description():
         }]
     )
 
-    # 3. Lidar SLLIDAR A1
-    #    ZMIANA: frame_id ustawiony na lidar_link (zgodnie z URDF).
-    #    Domyslnie driver publikuje 'laser', czego SLAM nie znajdzie w TF.
     sllidar = Node(
         package='sllidar_ros2',
         executable='sllidar_node',
@@ -87,9 +74,6 @@ def generate_launch_description():
         }]
     )
 
-    # 4. slam_toolbox (online async)
-    #    ZMIANA: wlasny plik parametrow (use_sim_time: false) zamiast
-    #    sciezki na sztywno. Opoznienie zwiekszone do 8 s.
     slam_toolbox = TimerAction(
         period=8.0,
         actions=[
@@ -105,7 +89,6 @@ def generate_launch_description():
         ]
     )
 
-    # Stany jointow kol - bez tego RViz nie renderuje modelu
     joint_state_publisher = Node(
         package='joint_state_publisher',
         executable='joint_state_publisher',
