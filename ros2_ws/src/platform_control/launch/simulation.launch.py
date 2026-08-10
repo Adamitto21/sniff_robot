@@ -1,7 +1,7 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch.substitutions import Command
@@ -10,6 +10,12 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     robot_description_pkg = get_package_share_directory('robot_description')
     
+    gazebo_model_path = SetEnvironmentVariable(
+            name='GAZEBO_MODEL_PATH',
+            value=os.path.join(robot_description_pkg, '..') + ':' +
+                os.environ.get('GAZEBO_MODEL_PATH', '')
+        )
+
     xacro_file = os.path.join(robot_description_pkg, 'urdf', 'robot.urdf.xacro')
     world_file = os.path.join(robot_description_pkg, 'worlds', 'sniff_indoor.world')
     gazebo_pkg = get_package_share_directory('gazebo_ros')
@@ -60,6 +66,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        gazebo_model_path,
         gazebo,
         robot_state_publisher,
         spawn_entity,

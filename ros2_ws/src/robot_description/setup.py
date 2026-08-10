@@ -17,6 +17,7 @@ setup(
         (os.path.join('share', package_name, 'rviz_conf'), glob('rviz_conf/*.rviz')),
         (os.path.join('share', package_name, 'worlds'), glob('worlds/*.world')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'meshes'), glob('meshes/*')),
     ],
     
     install_requires=['setuptools'],

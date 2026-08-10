@@ -156,6 +156,42 @@
     </plugin>
   </gazebo>
 
+<!-- ================= OBUDOWA (WIEZA POD LIDAR) ================= -->
+  <xacro:property name="tower_height" value="0.36"/>
+  <xacro:property name="tower_size_x" value="0.289"/>
+  <xacro:property name="tower_size_y" value="0.23"/>
+  <xacro:property name="tower_mass"   value="0.15"/>
+
+  <!-- Origin modelu STL lezy w globalnym ukladzie CAD (X~636, Y~918, Z~1270 mm).
+       Przesuwamy go tak, zeby srodek podstawy wypadl w (0,0,0). -->
+  <link name="tower_link">
+    <visual>
+      <origin xyz="-0.751 1.385 -0.918" rpy="1.5708 0 0"/>
+      <geometry>
+        <mesh filename="package://robot_description/meshes/obudowa.stl"
+              scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${tower_height/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${tower_size_x} ${tower_size_y} ${tower_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia m="${tower_mass}" w="${tower_size_y}" d="${tower_size_x}" h="${tower_height}"/>
+  </link>
+
+  <joint name="tower_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="tower_link"/>
+    <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+  </joint>
+
+  <gazebo reference="tower_link">
+    <material>Gazebo/Black</material>
+  </gazebo>
+
   <!--LIDAR-->
 
   <xacro:property name="lidar_radius" value="0.035"/>
@@ -184,9 +220,9 @@
   </link>
 
   <joint name="lidar_joint" type="fixed">
-    <parent link="base_link"/>
+    <parent link="tower_link"/>
     <child link="lidar_link"/>
-    <origin xyz="0 0 ${base_height/2 + lidar_height/2}" rpy="0 0 0"/>
+    <origin xyz="0 0 ${tower_height + lidar_height/2}" rpy="0 0 0"/>
   </joint>
 
   <gazebo reference="lidar_link">
