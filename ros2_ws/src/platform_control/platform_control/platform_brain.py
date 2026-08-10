@@ -24,7 +24,7 @@ class UnifiedUgvNode(Node):
         super().__init__('unified_ugv_node')
         self.declare_parameter('serial_port', '/dev/ttyCH343USB0')
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('track_width', 0.40)
+        self.declare_parameter('track_width', 0.172)
         self.declare_parameter('meters_per_tick', 0.00895)
         self.declare_parameter('max_tick_delta', 100)
 
