@@ -3,8 +3,9 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, Command
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -12,7 +13,8 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     serial_port = LaunchConfiguration('serial_port')
     serial_baudrate = LaunchConfiguration('serial_baudrate')
-    ugv_port = LaunchConfiguration('ugv_port')
+    use_slam = LaunchConfiguration('use_slam')
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
     declare_serial_port = DeclareLaunchArgument(
         'serial_port', default_value='/dev/ttyUSB1',
@@ -20,44 +22,16 @@ def generate_launch_description():
     declare_serial_baudrate = DeclareLaunchArgument(
         'serial_baudrate', default_value='115200',
         description='Baudrate lidaru (A1 = 115200)')
-    declare_ugv_port = DeclareLaunchArgument(
-        'ugv_port', default_value='/dev/ttyCH343USB0',
-        description='Port szeregowy ESP32 (platforma UGV02)')
+    declare_use_slam = DeclareLaunchArgument(
+        'use_slam', default_value='true',
+        description='Uruchamiac slam_toolbox razem z lidarem')
+    declare_use_sim_time = DeclareLaunchArgument(
+        'use_sim_time', default_value='false',
+        description='Czas z symulacji zamiast systemowego')
 
-    sllidar_share = get_package_share_directory('sllidar_ros2')
     slam_toolbox_share = get_package_share_directory('slam_toolbox')
-    robot_description_share = get_package_share_directory('robot_description')
-    xacro_file = os.path.join(robot_description_share, 'urdf', 'robot.urdf.xacro')
-    slam_params = os.path.join(robot_description_share, 'config', 'slam_params_hw.yaml')
-
-    robot_state_publisher = Node(
-        package='robot_state_publisher',
-        executable='robot_state_publisher',
-        name='robot_state_publisher',
-        output='screen',
-        parameters=[{
-            'robot_description': ParameterValue(
-                Command(['xacro ', xacro_file]), value_type=str),
-            'use_sim_time': False,
-        }]
-    )
-
-    unified_ugv = Node(
-        package='platform_control',
-        executable='odometry',
-        name='unified_ugv_node',
-        output='screen',
-        parameters=[{
-            'use_sim_time': False,
-            'serial_port': ugv_port,
-            'odom_frame': 'odom',
-            'base_frame': 'base_footprint',
-            'track_width': 0.40,
-            'meters_per_tick': 0.00895,
-            'min_angular_cmd': 0.30,
-            'cmd_vel_timeout': 0.5,
-        }]
-    )
+    description_share = get_package_share_directory('robot_description')
+    slam_params = os.path.join(description_share, 'config', 'slam_params_hw.yaml')
 
     sllidar = Node(
         package='sllidar_ros2',
@@ -66,14 +40,16 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'serial_port': serial_port,
-            'serial_baudrate': serial_baudrate,
+            # bez ParameterValue trafi tu tekst '115200', a sterownik chce int
+            'serial_baudrate': ParameterValue(serial_baudrate, value_type=int),
             'frame_id': 'lidar_link',
             'inverted': False,
             'angle_compensate': True,
             'scan_mode': 'Standard',
-        }]
+        }],
     )
 
+    # Opoznienie: slam_toolbox startuje po tym, jak lidar zdazy nadac pierwszy skan
     slam_toolbox = TimerAction(
         period=8.0,
         actions=[
@@ -82,28 +58,19 @@ def generate_launch_description():
                     os.path.join(slam_toolbox_share, 'launch',
                                  'online_async_launch.py')),
                 launch_arguments={
-                    'use_sim_time': 'false',
+                    'use_sim_time': use_sim_time,
                     'slam_params_file': slam_params,
-                }.items()
+                }.items(),
+                condition=IfCondition(use_slam),
             )
-        ]
-    )
-
-    joint_state_publisher = Node(
-        package='joint_state_publisher',
-        executable='joint_state_publisher',
-        name='joint_state_publisher',
-        parameters=[{'use_sim_time': False}],
-        output='screen',
+        ],
     )
 
     return LaunchDescription([
         declare_serial_port,
         declare_serial_baudrate,
-        declare_ugv_port,
-        robot_state_publisher,
-        joint_state_publisher,
-        unified_ugv,
+        declare_use_slam,
+        declare_use_sim_time,
         sllidar,
         slam_toolbox,
     ])
