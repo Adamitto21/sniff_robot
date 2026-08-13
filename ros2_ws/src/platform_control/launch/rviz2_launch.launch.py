@@ -11,7 +11,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     robot_description_pkg = get_package_share_directory('robot_description')
-    rviz_config_file = os.path.join(robot_description_pkg, 'rviz_conf', 'config_rviz2.rviz')
+    rviz_config_file = os.path.join(robot_description_pkg, 'rviz_conf', 'new_config_explore.rviz')
     
 
     rviz2 = Node(
