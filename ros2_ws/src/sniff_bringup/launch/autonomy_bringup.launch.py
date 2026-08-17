@@ -64,7 +64,8 @@ def generate_launch_description():
         period=LaunchConfiguration('nav2_delay'),
         actions=[
             LogInfo(msg='[autonomy] startuje nav2...'),
-            include(os.path.join(platform_launch, 'nav2.launch.py'), 'use_nav2'),
+            include(os.path.join(platform_launch, 'nav2.launch.py'), 'use_nav2',
+			{'use_sim_time': 'false'}),
         ],
     )
 
@@ -74,7 +75,7 @@ def generate_launch_description():
         actions=[
             LogInfo(msg='[autonomy] startuje eksploracje...'),
             include(os.path.join(platform_launch, 'explore.launch.py'),
-                    'use_explore'),
+                    'use_explore', {'use_sim_time': 'false'}),
         ],
     )
 
