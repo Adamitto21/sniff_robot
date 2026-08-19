@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, Temperature
+from sensor_msgs.msg import Image, PointCloud2, PointField
+from std_msgs.msg import Header
 from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithPose
 from cv_bridge import CvBridge
 import depthai as dai
@@ -24,12 +25,15 @@ LABELS = [
     "toothbrush"
 ]
 
+
 class OakDetectorNode(Node):
     def __init__(self):
         super().__init__('oak_detector')
+
         self.declare_parameter('blob_path', '')
         self.declare_parameter('confidence_threshold', 0.5)
-        self.declare_parameter('fps', 10)  # ZMIANA: bylo 15, obnizone do testow grzania
+        self.declare_parameter('fps', 5)
+        self.declare_parameter('depth_point_step', 8)
 
         blob_path = self.get_parameter('blob_path').value
         if not blob_path:
@@ -37,35 +41,41 @@ class OakDetectorNode(Node):
             blob_path = os.path.join(pkg_dir, 'models', 'yolov5n.blob')
 
         self.conf_thresh = self.get_parameter('confidence_threshold').value
-        fps = self.get_parameter('fps').value
+        self.fps = self.get_parameter('fps').value
+        self.point_step_px = self.get_parameter('depth_point_step').value
 
-        self.get_logger().info(f'Ladowanie modelu: {blob_path}')
-        self.get_logger().info(f'FPS: {fps}')
-        self.pub_detections = self.create_publisher(Detection2DArray, '/detections', 10)
-        self.pub_image = self.create_publisher(Image, '/sniff/camera/image', 10)
-        self.pub_depth = self.create_publisher(Image, '/sniff/camera/depth/preview', 10)
-        self.pub_temp = self.create_publisher(Temperature, '/sniff/camera/temperature', 10)
+        self.get_logger().info(
+            f'Ladowanie modelu: {blob_path}, fps={self.fps}')
+
+        self.pub_detections = self.create_publisher(
+            Detection2DArray, '/detections', 10)
+        self.pub_image = self.create_publisher(
+            Image, '/sniff/camera/image', 10)
+        self.pub_points = self.create_publisher(
+            PointCloud2, '/sniff/oak_d_lite_depth/points', 5)
         self.bridge = CvBridge()
-        self.device, self.q_rgb, self.q_nn, self.q_depth = self._build_pipeline(blob_path, fps)
-        self.get_logger().info('Kamera i model gotowe')
-        self.create_timer(1.0 / fps, self.process_frame)
-        self.create_timer(5.0, self.publish_temperature)
 
-    def _build_pipeline(self, blob_path, fps):
+        (self.device, self.q_rgb, self.q_nn, self.q_depth,
+         self.intrinsics) = self._build_pipeline(blob_path)
+
+        self.get_logger().info('Kamera, YOLO i stereo depth gotowe')
+        self.create_timer(1.0 / self.fps, self.process_frame)
+
+    def _build_pipeline(self, blob_path):
         pipeline = dai.Pipeline()
 
+        # ---------- RGB + YOLO ----------
         cam_rgb = pipeline.create(dai.node.ColorCamera)
         nn = pipeline.create(dai.node.YoloDetectionNetwork)
         xout_rgb = pipeline.createXLinkOut()
         xout_nn = pipeline.createXLinkOut()
-
         xout_rgb.setStreamName("rgb")
         xout_nn.setStreamName("nn")
 
         cam_rgb.setPreviewSize(416, 416)
         cam_rgb.setInterleaved(False)
         cam_rgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
-        cam_rgb.setFps(fps)
+        cam_rgb.setFps(self.fps)
 
         nn.setBlobPath(blob_path)
         nn.setConfidenceThreshold(self.conf_thresh)
@@ -89,43 +99,60 @@ class OakDetectorNode(Node):
         cam_rgb.preview.link(xout_rgb.input)
         nn.out.link(xout_nn.input)
 
-        # ================= GLEBIA (STEREO) =================
+        # ---------- Stereo depth ----------
         mono_left = pipeline.create(dai.node.MonoCamera)
         mono_right = pipeline.create(dai.node.MonoCamera)
         stereo = pipeline.create(dai.node.StereoDepth)
         xout_depth = pipeline.createXLinkOut()
         xout_depth.setStreamName("depth")
 
-        mono_left.setResolution(dai.MonoCameraProperties.SensorResolution.THE_480_P)
+        mono_left.setResolution(
+            dai.MonoCameraProperties.SensorResolution.THE_400_P)
         mono_left.setBoardSocket(dai.CameraBoardSocket.LEFT)
-        mono_left.setFps(fps)  # ZMIANA: wczesniej brak - mono lecialo na domyslnych 30Hz
+        mono_left.setFps(self.fps)
 
-        mono_right.setResolution(dai.MonoCameraProperties.SensorResolution.THE_480_P)
+        mono_right.setResolution(
+            dai.MonoCameraProperties.SensorResolution.THE_400_P)
         mono_right.setBoardSocket(dai.CameraBoardSocket.RIGHT)
-        mono_right.setFps(fps)  # ZMIANA: jw.
+        mono_right.setFps(self.fps)
 
-        stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
+        stereo.initialConfig.setConfidenceThreshold(200)
         stereo.setLeftRightCheck(True)
         stereo.setSubpixel(False)
+        stereo.setExtendedDisparity(False)
+        stereo.setDepthAlign(dai.CameraBoardSocket.RIGHT)
 
         mono_left.out.link(stereo.left)
         mono_right.out.link(stereo.right)
         stereo.depth.link(xout_depth.input)
-        # =======================================================
 
         device = dai.Device(pipeline)
+
         q_rgb = device.getOutputQueue("rgb", maxSize=4, blocking=False)
         q_nn = device.getOutputQueue("nn", maxSize=4, blocking=False)
         q_depth = device.getOutputQueue("depth", maxSize=4, blocking=False)
-        return device, q_rgb, q_nn, q_depth
+
+        calib = device.readCalibration()
+        intr = calib.getCameraIntrinsics(dai.CameraBoardSocket.RIGHT, 640, 400)
+        intrinsics = {
+            'fx': intr[0][0], 'fy': intr[1][1],
+            'cx': intr[0][2], 'cy': intr[1][2],
+        }
+
+        return device, q_rgb, q_nn, q_depth, intrinsics
 
     def process_frame(self):
         in_rgb = self.q_rgb.tryGet()
         in_nn = self.q_nn.tryGet()
         in_depth = self.q_depth.tryGet()
-        if in_rgb is None:
-            return
 
+        if in_rgb is not None:
+            self._publish_detections(in_rgb, in_nn)
+
+        if in_depth is not None:
+            self._publish_pointcloud(in_depth)
+
+    def _publish_detections(self, in_rgb, in_nn):
         frame = in_rgb.getCvFrame()
         h, w = frame.shape[:2]
 
@@ -162,28 +189,48 @@ class OakDetectorNode(Node):
         img_msg.header = det_array.header
         self.pub_image.publish(img_msg)
 
-        if in_depth is not None:
-            depth_frame = in_depth.getFrame()
-            depth_clipped = np.clip(depth_frame, 200, 5000)
-            depth_vis = ((depth_clipped.astype(np.float32) - 200) / (5000 - 200) * 255).astype(np.uint8)
-            depth_colored = cv2.applyColorMap(depth_vis, cv2.COLORMAP_TURBO)
-            depth_colored[depth_frame == 0] = (0, 0, 0)
+    def _publish_pointcloud(self, in_depth):
+        depth_frame = in_depth.getFrame()  # uint16, milimetry
+        step = self.point_step_px
 
-            depth_msg = self.bridge.cv2_to_imgmsg(depth_colored, encoding='bgr8')
-            depth_msg.header = det_array.header
-            self.pub_depth.publish(depth_msg)
+        v_idx, u_idx = np.mgrid[0:depth_frame.shape[0]:step,
+                                 0:depth_frame.shape[1]:step]
+        z = depth_frame[v_idx, u_idx].astype(np.float32) / 1000.0  # mm -> m
 
-    def publish_temperature(self):
-        try:
-            temp = self.device.getChipTemperature()
-            msg = Temperature()
-            msg.header.stamp = self.get_clock().now().to_msg()
-            msg.header.frame_id = 'oak_camera'
-            msg.temperature = float(temp.average)
-            msg.variance = 0.0
-            self.pub_temp.publish(msg)
-        except Exception as e:
-            self.get_logger().warn(f'Nie udalo sie odczytac temperatury VPU: {e}')
+        valid = z > 0.1
+        z = z[valid]
+        u = u_idx[valid].astype(np.float32)
+        v = v_idx[valid].astype(np.float32)
+
+        fx, fy = self.intrinsics['fx'], self.intrinsics['fy']
+        cx, cy = self.intrinsics['cx'], self.intrinsics['cy']
+
+        x = (u - cx) * z / fx
+        y = (v - cy) * z / fy
+
+        points = np.stack([x, y, z], axis=-1).astype(np.float32)
+
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
+        header.frame_id = 'camera_link_optical'
+
+        msg = PointCloud2()
+        msg.header = header
+        msg.height = 1
+        msg.width = points.shape[0]
+        msg.fields = [
+            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+        ]
+        msg.is_bigendian = False
+        msg.point_step = 12
+        msg.row_step = 12 * points.shape[0]
+        msg.is_dense = True
+        msg.data = points.tobytes()
+
+        self.pub_points.publish(msg)
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -196,6 +243,7 @@ def main(args=None):
         node.device.close()
         node.destroy_node()
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
