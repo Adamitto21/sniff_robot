@@ -8,6 +8,7 @@ import depthai as dai
 import numpy as np
 import cv2
 import os
+import time
 from ament_index_python.packages import get_package_share_directory
 
 LABELS = [
@@ -190,7 +191,8 @@ class OakDetectorNode(Node):
         self.pub_image.publish(img_msg)
 
     def _publish_pointcloud(self, in_depth):
-        depth_frame = in_depth.getFrame()  # uint16, milimetry
+	t_start = time.perf_counter()    
+    	depth_frame = in_depth.getFrame()  # uint16, milimetry
         step = self.point_step_px
 
         v_idx, u_idx = np.mgrid[0:depth_frame.shape[0]:step,
@@ -230,6 +232,12 @@ class OakDetectorNode(Node):
         msg.data = points.tobytes()
 
         self.pub_points.publish(msg)
+	t_elapsed = (time.perf_counter() - t_start) * 1000
+        self._pc_frame_count = getattr(self, '_pc_frame_count', 0) + 1
+        if self._pc_frame_count % 50 == 0:
+            self.get_logger().info(
+                f'Reprojekcja point cloud: {t_elapsed:.2f} ms, '
+                f'{points.shape[0]} punktow')
 
 
 def main(args=None):
