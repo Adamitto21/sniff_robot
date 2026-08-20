@@ -33,7 +33,7 @@ class OakDetectorNode(Node):
 
         self.declare_parameter('blob_path', '')
         self.declare_parameter('confidence_threshold', 0.5)
-        self.declare_parameter('fps', 5)
+        self.declare_parameter('fps', 10)
         self.declare_parameter('depth_point_step', 8)
 
         blob_path = self.get_parameter('blob_path').value
@@ -191,8 +191,8 @@ class OakDetectorNode(Node):
         self.pub_image.publish(img_msg)
 
     def _publish_pointcloud(self, in_depth):
-	t_start = time.perf_counter()    
-    	depth_frame = in_depth.getFrame()  # uint16, milimetry
+        t_start = time.perf_counter()    
+        depth_frame = in_depth.getFrame()  # uint16, milimetry
         step = self.point_step_px
 
         v_idx, u_idx = np.mgrid[0:depth_frame.shape[0]:step,
@@ -232,13 +232,25 @@ class OakDetectorNode(Node):
         msg.data = points.tobytes()
 
         self.pub_points.publish(msg)
-	t_elapsed = (time.perf_counter() - t_start) * 1000
-        self._pc_frame_count = getattr(self, '_pc_frame_count', 0) + 1
-        if self._pc_frame_count % 50 == 0:
+        t_elapsed = (time.perf_counter() - t_start) * 1000
+
+        now = time.time()
+        last_log = getattr(self, '_last_telemetry_log', 0.0)
+        if now - last_log >= 60.0:
+            self._last_telemetry_log = now
+            css = self.device.getChipTemperature()
             self.get_logger().info(
                 f'Reprojekcja point cloud: {t_elapsed:.2f} ms, '
-                f'{points.shape[0]} punktow')
+                f'{points.shape[0]} punktow, '
+                f'temp VPU avg: {css.average:.1f}C')
 
+            if css.average > 70.0:
+                self.get_logger().warn(
+                    f'VPU temperatura wysoka: {css.average:.1f}C (prog: 70.0C)')
+
+        if t_elapsed > 20.0:
+            self.get_logger().warn(
+                f'Reprojekcja point cloud wolna: {t_elapsed:.2f} ms (prog: 20.0 ms)')
 
 def main(args=None):
     rclpy.init(args=args)
