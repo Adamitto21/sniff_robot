@@ -26,3 +26,4 @@ firmware/*.bin
 tools/pid/*.csv
 tools/pid/*.png
 tools/pid/__pycache__/
+ros2_ws/recordings/

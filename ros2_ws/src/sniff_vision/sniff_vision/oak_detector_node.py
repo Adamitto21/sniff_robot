@@ -60,6 +60,11 @@ class OakDetectorNode(Node):
          self.intrinsics) = self._build_pipeline(blob_path)
 
         self.get_logger().info('Kamera, YOLO i stereo depth gotowe')
+        self.get_logger().info(
+            f'Intrinsics: fx={self.intrinsics["fx"]:.2f}, '
+            f'fy={self.intrinsics["fy"]:.2f}, '
+            f'cx={self.intrinsics["cx"]:.2f}, '
+            f'cy={self.intrinsics["cy"]:.2f}')
         self.create_timer(1.0 / self.fps, self.process_frame)
 
     def _build_pipeline(self, blob_path):
@@ -199,7 +204,7 @@ class OakDetectorNode(Node):
                                  0:depth_frame.shape[1]:step]
         z = depth_frame[v_idx, u_idx].astype(np.float32) / 1000.0  # mm -> m
 
-        valid = z > 0.1
+        valid = (z > 0.1) & (z < 3.0)  # odetnij szum stereo na duzych odlegosciach
         z = z[valid]
         u = u_idx[valid].astype(np.float32)
         v = v_idx[valid].astype(np.float32)
