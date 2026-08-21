@@ -40,6 +40,14 @@ class UnifiedUgvNode(Node):
         # ZMIANA 3: timeout watchdoga /cmd_vel jako parametr.
         self.declare_parameter('cmd_vel_timeout', 0.5)
 
+        # ZMIANA 6: nastawy PID silnikow jako parametry.
+        # P=0, I=800, D=0 - najlepszy kompromis z testow: uchyb 8.7%,
+        # najbardziej plynny ruch, odporny na drgania konstrukcji
+        # zaklocajace pomiar lidaru.
+        self.declare_parameter('motor_pid_p', 0)
+        self.declare_parameter('motor_pid_i', 800)
+        self.declare_parameter('motor_pid_d', 0)
+
         self.serial_port = self.get_parameter('serial_port').value
         baudrate = self.get_parameter('baudrate').value
         self.track_width = self.get_parameter('track_width').value
@@ -49,6 +57,9 @@ class UnifiedUgvNode(Node):
         self.odom_frame = self.get_parameter('odom_frame').value                # ZMIANA 2
         self.base_frame = self.get_parameter('base_frame').value                # ZMIANA 2
         self.cmd_vel_timeout = self.get_parameter('cmd_vel_timeout').value      # ZMIANA 3
+        self.motor_pid_p = self.get_parameter('motor_pid_p').value              # ZMIANA 6
+        self.motor_pid_i = self.get_parameter('motor_pid_i').value              # ZMIANA 6
+        self.motor_pid_d = self.get_parameter('motor_pid_d').value              # ZMIANA 6
 
         self.x = 0.0
         self.y = 0.0
@@ -76,6 +87,11 @@ class UnifiedUgvNode(Node):
         self.enable_feedback_stream()
         self.create_timer(5.0, self.enable_feedback_stream)
 
+        # ZMIANA 6: ustawienie PID silnikow raz przy starcie. Nie ponawiamy
+        # w timerze (w przeciwienstwie do feedback) bo to ustawienie trwale
+        # w firmware, nie stan ktory ESP32 gubi.
+        self.set_motor_pid()
+
         # ZMIANA 3: watchdog /cmd_vel - zatrzymuje robota gdy Nav2 przestanie
         # publikowac (osiagniety cel, awaria, zerwana siec). Bez tego firmware
         # trzyma ostatnia komende i robot jedzie dalej.
@@ -97,6 +113,21 @@ class UnifiedUgvNode(Node):
     def enable_feedback_stream(self):
         # CMD_BASE_FEEDBACK_FLOW = 131, cmd=1 -> ciagly strumien ramek T:1001
         self._send({'T': 131, 'cmd': 1})
+
+    def set_motor_pid(self):
+        # CMD_SET_PID = 2. L to zarezerwowany Windup Limits, nieuzywany
+        # przez domyslny kontroler UGV02 - firmware ignoruje te wartosc,
+        # ale API tego wymaga wiec wysylamy 255 (wartosc z dokumentacji).
+        self._send({
+            'T': 2,
+            'P': self.motor_pid_p,
+            'I': self.motor_pid_i,
+            'D': self.motor_pid_d,
+            'L': 255,
+        })
+        self.get_logger().info(
+            f"Ustawiono PID silnikow: P={self.motor_pid_p}, "
+            f"I={self.motor_pid_i}, D={self.motor_pid_d}")
 
     # ZMIANA 3: nowa metoda
     def cmd_watchdog(self):
