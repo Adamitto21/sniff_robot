@@ -29,7 +29,8 @@ setup(
         'console_scripts': [
             'platform_driver = platform_control.platform_driver:main',
             'keyboard = platform_control.keyboard:main',
-            'odometry = platform_control.platform_brain:main'
+            'odometry = platform_control.platform_brain:main',
+            'patrol = platform_control.patrol_node:main'
         ],
     },
 )

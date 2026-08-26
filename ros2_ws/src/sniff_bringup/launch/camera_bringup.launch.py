@@ -19,13 +19,6 @@ def generate_launch_description():
         output='screen',
     )
 
-    web_viewer = Node(
-        package='sniff_vision',
-        executable='web_viewer',
-        name='web_viewer',
-        output='screen',
-    )
-
     video_recorder = Node(
         package='sniff_vision',
         executable='video_recorder',
@@ -37,6 +30,5 @@ def generate_launch_description():
     return LaunchDescription([
         declare_use_recorder,
         oak_detector,
-        web_viewer,
         video_recorder,
     ])

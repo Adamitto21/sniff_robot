@@ -1,0 +1,16 @@
+twist_mux:
+  ros__parameters:
+    topics:
+      navigation:
+        topic: cmd_vel_nav
+        timeout: 0.5
+        priority: 10
+      manual:
+        topic: cmd_vel_manual
+        timeout: 0.5
+        priority: 100
+    locks:
+      manual_lock:
+        topic: manual_lock
+        timeout: 0.0
+        priority: 50

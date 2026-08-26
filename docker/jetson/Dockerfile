@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y \
     #paczki do strony internetowej
     ros-humble-rosbridge-suite \
     ros-humble-web-video-server \
+    ros-humble-twist-mux \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install depthai==2.24.0.0
