@@ -3,6 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud2, PointField
 from std_msgs.msg import Header
 from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithPose
+from std_msgs.msg import String
 from cv_bridge import CvBridge
 import depthai as dai
 import numpy as np
@@ -35,6 +36,7 @@ class OakDetectorNode(Node):
         self.declare_parameter('confidence_threshold', 0.5)
         self.declare_parameter('fps', 10)
         self.declare_parameter('depth_point_step', 8)
+        self.declare_parameter('detection_log_interval_sec', 5.0)
 
         blob_path = self.get_parameter('blob_path').value
         if not blob_path:
@@ -54,6 +56,11 @@ class OakDetectorNode(Node):
             Image, '/sniff/camera/image', 10)
         self.pub_points = self.create_publisher(
             PointCloud2, '/sniff/oak_d_lite_depth/points', 5)
+        self.pub_detection_log = self.create_publisher(
+            String, '/sniff/detection_log', 10)
+        self.detection_log_interval = self.get_parameter(
+            'detection_log_interval_sec').value
+        self._last_log_time = {}  # label -> ostatni czas publikacji
         self.bridge = CvBridge()
 
         (self.device, self.q_rgb, self.q_nn, self.q_depth,
@@ -189,11 +196,24 @@ class OakDetectorNode(Node):
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(frame, f'{label} {det.confidence:.2f}',
                             (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                self._maybe_log_detection(label, det.confidence)
 
         self.pub_detections.publish(det_array)
         img_msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
         img_msg.header = det_array.header
         self.pub_image.publish(img_msg)
+
+    def _maybe_log_detection(self, label, confidence):
+        now = time.time()
+        last = self._last_log_time.get(label, 0.0)
+        if now - last < self.detection_log_interval:
+            return
+        self._last_log_time[label] = now
+
+        timestamp = time.strftime('%H:%M:%S')
+        msg = String()
+        msg.data = f'{timestamp} - wykryto: {label} (pewnosc: {confidence*100:.0f}%)'
+        self.pub_detection_log.publish(msg)
 
     def _publish_pointcloud(self, in_depth):
         t_start = time.perf_counter()    
