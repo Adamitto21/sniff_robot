@@ -58,6 +58,8 @@ class OakDetectorNode(Node):
             PointCloud2, '/sniff/oak_d_lite_depth/points', 5)
         self.pub_detection_log = self.create_publisher(
             String, '/sniff/detection_log', 10)
+        self.pub_depth_image = self.create_publisher(
+            Image, '/sniff/camera/depth_image', 5)
         self.detection_log_interval = self.get_parameter(
             'detection_log_interval_sec').value
         self._last_log_time = {}  # label -> ostatni czas publikacji
@@ -220,8 +222,24 @@ class OakDetectorNode(Node):
         depth_frame = in_depth.getFrame()  # uint16, milimetry
         step = self.point_step_px
 
-        v_idx, u_idx = np.mgrid[0:depth_frame.shape[0]:step,
+        # Podglad calego obrazu glebi (przed uciecien) - do diagnostyki w web_video_server
+        # Skala szarosci: bliskie obiekty jasniejsze, dalekie ciemniejsze
+        depth_vis = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        depth_img_msg = self.bridge.cv2_to_imgmsg(depth_vis, encoding='mono8')
+        depth_img_msg.header.stamp = self.get_clock().now().to_msg()
+        depth_img_msg.header.frame_id = 'camera_link_optical'
+        self.pub_depth_image.publish(depth_img_msg)
+
+        # Bierzemy tylko GORNA POLOWE obrazu glebi (v < height/2).
+        # Kamera montowana poziomo: dolna polowa to podloga/kierunek w dol,
+        # ktora dawala falszywe "sciany" przez blask polerowanej wykladziny.
+        # Koszt: kamera nie widzi juz zadnych niskich przeszkod - lidar
+        # (montowany wyzej, na wiezy) pozostaje jedynym czujnikiem dla nich.
+        half_height = depth_frame.shape[0] // 2
+        v_idx, u_idx = np.mgrid[0:half_height:step,
                                  0:depth_frame.shape[1]:step]
+
+        
         z = depth_frame[v_idx, u_idx].astype(np.float32) / 1000.0  # mm -> m
 
         valid = (z > 0.1) & (z < 3.0)  # odetnij szum stereo na duzych odlegosciach
