@@ -29,6 +29,7 @@
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>rosapi</exec_depend>
   <exec_depend>web_video_server</exec_depend>
+  <exec_depend>twist_mux</exec_depend>
   
   <exec_depend>sniff_msgs</exec_depend>
 
