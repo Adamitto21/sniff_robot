@@ -7,7 +7,7 @@
 
 'use strict';
 
-const APP_VERSION = 'js v7';   // musi zgadzać się z 'html v3' w stopce
+const APP_VERSION = 'js v8';   // musi zgadzać się z 'html v3' w stopce
 
 /* ======================= KONFIGURACJA ======================= */
 
@@ -17,8 +17,13 @@ const DEFAULT_CFG = {
   videoPort: 8080,
   cmdVelTopic: '/cmd_vel_manual',   // wejscie twist_mux dla sterowania recznego
   lockTopic: '/manual_lock',        // blokada nav2 (std_msgs/Bool) dla twist_mux
-  cameraTopic: '/oak/rgb/image_raw',
-  depthTopic: '/oak/stereo/image_raw',   // OAK-D: mapa glebi ze stereo
+  // Wstrzymanie samego nav2, nie tylko jego komend. Bez tego nav2 dalej liczy,
+  // widzi brak postepu, uruchamia zachowania ratunkowe i porzuca cel — a
+  // explore_lite wpisuje ten obszar na czarna liste.
+  navService: '/lifecycle_manager_navigation/manage_nodes',
+  pauseNav: true,
+  cameraTopic: '/sniff/camera/image',
+  depthTopic: '/sniff/camera/depth_image',   // OAK-D: mapa glebi ze stereo
   camMode: 'rgb',                        // 'rgb' albo 'depth' — zapamietywany
   mapTopic: '/map',
   poseTopic: '/pose',             // slam_toolbox publikuje PoseWithCovarianceStamped
@@ -28,21 +33,24 @@ const DEFAULT_CFG = {
   maxAngular: 1.2,                // rad/s
   sensors: [
     {topic: '/sniff/camera/temperature', type: 'sensor_msgs/msg/Temperature',
-     label: 'Temperatura kamery', unit: '', field: 'data'},
+      label: 'Temperatura kamery', unit: '', field: 'temperature'},
     {topic: '/sniff/pms5003', type: 'sniff_msgs/msg/Pms5003',
-     label: 'PM2.5', unit: 'ug/m3', field: 'pm25'},
+      label: 'PM2.5', unit: 'ug/m3', field: 'pm25'},
     {topic: '/sniff/pms5003', type: 'sniff_msgs/msg/Pms5003',
-     label: 'PM10', unit: 'ug/m3', field: 'pm10'},
+      label: 'PM10', unit: 'ug/m3', field: 'pm10'},
     {topic: '/sniff/detection_log', type: 'std_msgs/msg/String',
-     label: 'Ostatnia detekcja', unit: '', field: 'data'},
+      label: 'Ostatnia detekcja', unit: '', field: 'data'},
   ],
-  presetVersion: 3,               // podbicie dorzuca nowe domyslne czujniki
 
-  /* Gotowe zestawy kart — przycisk "zasilanie" w panelu Czujniki.
+presetVersion: 3,               // podbicie dorzuca nowe domyslne czujniki
+
+/* Gotowe zestawy kart — przycisk "zasilanie" w panelu Czujniki.
+
      3 ogniwa 18650 w szeregu: 12,6 V pełne, ~11 V niskie, ~9 V odcięcie. */
-  batteryTopic: '/battery',        // zmienisz w ustawieniach albo z listy topików
-  presets: {
-    battery: [
+
+batteryTopic: '/battery',        // zmienisz w ustawieniach albo z listy topików
+presets: {
+battery: [
       { field: 'voltage',    label: 'Napiecie',  unit: 'V',  warn: 10.5, crit: 9.6, invert: true },
       { field: 'percentage', label: 'Bateria',   unit: '%',  warn: 30,   crit: 15,  invert: true, scale: 100 },
       { field: 'current',    label: 'Prad',      unit: 'A' },
@@ -413,6 +421,7 @@ function stopAll(flash = true) {
     saveCfg();
     applyMode();
     for (let i = 0; i < 3; i++) pubLock(true);   // odetnij nav2 natychmiast
+    navCommand(NAV_PAUSE, 'wstrzymane');
     if (flash) toast('STOP \u2014 przejeto sterowanie, tryb reczny');
   }
   keysDown.clear();
@@ -431,6 +440,44 @@ function stopAll(flash = true) {
 
 function isAuto() { return cfg.driveMode === 'auto'; }
 
+/* nav2_msgs/srv/ManageLifecycleNodes — wartosci wg dokumentacji Humble.
+   UWAGA: RESET=3 i SHUTDOWN=4, wiec pomylka w tej stalej wylaczylaby nawigacje. */
+const NAV_PAUSE = 1;
+const NAV_RESUME = 2;
+
+let navBusy = false;
+
+function setNavStatus(txt, cls) {
+  const el = $('modeStatus');
+  if (!el) return;
+  el.textContent = txt;
+  el.className = 'mode-status' + (cls ? ' ' + cls : '');
+}
+
+/* Wstrzymuje albo wznawia nav2. Wynik pokazujemy na stronie — cicha porazka
+   tej komendy oznaczalaby, ze robot dalej jedzie mimo trybu recznego. */
+function navCommand(command, label) {
+  if (!cfg.pauseNav || !cfg.navService) { setNavStatus(''); return; }
+  if (!ros.connected) { setNavStatus('nav2: brak polaczenia', 'bad'); return; }
+
+  navBusy = true;
+  setNavStatus('nav2: ' + label + '\u2026');
+  let done = false;
+  const timer = setTimeout(() => {
+    if (done) return;
+    done = true; navBusy = false;
+    setNavStatus('nav2: brak odpowiedzi (sprawdz nazwe uslugi)', 'bad');
+  }, 5000);
+
+  ros.callService(cfg.navService, { command }, (vals, result) => {
+    if (done) return;
+    done = true; clearTimeout(timer); navBusy = false;
+    const ok = result !== false && (!vals || vals.success !== false);
+    setNavStatus(ok ? 'nav2: ' + label : 'nav2: ' + label + ' nie powiodlo sie',
+                 ok ? 'good' : 'bad');
+  });
+}
+
 function applyMode() {
   const auto = isAuto();
   const mBtn = $('btnModeManual'), aBtn = $('btnModeAuto');
@@ -443,7 +490,8 @@ function applyMode() {
       ? 'sterowanie po stronie nav2 \u2014 joystick i klawiatura wy\u0142\u0105czone'
       : 'klawiatura: W A S D / strza\u0142ki \u00b7 spacja = STOP';
   }
-  $('cmdVelBadge').textContent = auto ? 'nav2 \u2192 ' + cfg.cmdVelTopic : cfg.cmdVelTopic;
+  $('cmdVelBadge').textContent = auto ? 'nav2 \u2192 /cmd_vel' : cfg.cmdVelTopic;
+  if (!navBusy) setNavStatus(cfg.pauseNav ? '' : 'nav2: wstrzymywanie wylaczone');
 }
 
 /* Blokada dla twist_mux: true = odetnij nav2, sterujemy recznie.
@@ -458,7 +506,9 @@ function setMode(mode) {
   if (cfg.driveMode === mode) return;
 
   if (mode === 'auto') {
-    // zdejmujemy blokade — dopiero teraz nav2 moze ruszyc robotem
+    // najpierw wznawiamy nav2, potem zdejmujemy blokade — inaczej robot
+    // dostalby komendy zanim nawigacja bedzie gotowa
+    navCommand(NAV_RESUME, 'wznowione');
     for (let i = 0; i < 3; i++) pubLock(false);
     keysDown.clear();
     drive.engaged = false;
@@ -468,11 +518,12 @@ function setMode(mode) {
     drive.zeroBurst = 0;
     updateSpeedUI(0, 0);
   } else {
-    // zakladamy blokade i od razu zerujemy — nav2 zostaje odciete,
-    // a robot staje, zamiast dojechac do konca biezacego celu
+    // blokada NAJPIERW (dziala natychmiast), dopiero potem wstrzymanie nav2
+    // (trwa chwile i moze sie nie powiesc) — robot staje w kazdym przypadku
     for (let i = 0; i < 3; i++) pubLock(true);
     pubTwist(0, 0);
     drive.zeroBurst = 3;
+    navCommand(NAV_PAUSE, 'wstrzymane');
   }
 
   cfg.driveMode = mode;
@@ -1227,6 +1278,8 @@ function openSettings() {
   $('f_videoPort').value = cfg.videoPort;
   $('f_cmdVelTopic').value = cfg.cmdVelTopic;
   $('f_lockTopic').value = cfg.lockTopic;
+  $('f_navService').value = cfg.navService;
+  $('f_pauseNav').checked = !!cfg.pauseNav;
   $('f_cameraTopic').value = cfg.cameraTopic;
   $('f_depthTopic').value = cfg.depthTopic;
   $('f_mapTopic').value = cfg.mapTopic;
@@ -1244,6 +1297,8 @@ $('btnCfgSave').addEventListener('click', () => {
   cfg.videoPort = parseInt($('f_videoPort').value, 10) || 8080;
   cfg.cmdVelTopic = $('f_cmdVelTopic').value.trim() || DEFAULT_CFG.cmdVelTopic;
   cfg.lockTopic = $('f_lockTopic').value.trim();
+  cfg.navService = $('f_navService').value.trim();
+  cfg.pauseNav = $('f_pauseNav').checked;
   cfg.cameraTopic = $('f_cameraTopic').value.trim() || DEFAULT_CFG.cameraTopic;
   cfg.depthTopic = $('f_depthTopic').value.trim() || DEFAULT_CFG.depthTopic;
   cfg.mapTopic = $('f_mapTopic').value.trim() || '/map';

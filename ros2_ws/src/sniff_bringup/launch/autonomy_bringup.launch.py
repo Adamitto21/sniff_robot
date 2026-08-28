@@ -53,6 +53,8 @@ def generate_launch_description():
     base = include(os.path.join(sniff_launch, 'base_bringup.launch.py'),
                    'use_base', {'ugv_port': ugv_port})
 
+    mux = include(os.path.join(sniff_launch, 'mux_bringup.launch.py'), 'use_base')
+
     # --- 0 s: lidar (slam startuje w srodku po 8 s) ---
     lidar = include(os.path.join(sniff_launch, 'lidar_bringup.launch.py'),
                     'use_lidar', {'serial_port': serial_port,
@@ -64,8 +66,7 @@ def generate_launch_description():
         period=LaunchConfiguration('nav2_delay'),
         actions=[
             LogInfo(msg='[autonomy] startuje nav2...'),
-            include(os.path.join(platform_launch, 'nav2.launch.py'), 'use_nav2',
-			{'use_sim_time': 'false'}),
+            include(os.path.join(platform_launch, 'nav2.launch.py'), 'use_nav2'),
         ],
     )
 
@@ -75,13 +76,14 @@ def generate_launch_description():
         actions=[
             LogInfo(msg='[autonomy] startuje eksploracje...'),
             include(os.path.join(platform_launch, 'explore.launch.py'),
-                    'use_explore', {'use_sim_time': 'false'}),
+                    'use_explore'),
         ],
     )
 
     return LaunchDescription(declares + [
         LogInfo(msg='[autonomy] start: base + lidar, potem nav2, na koncu explore'),
         base,
+        mux,
         lidar,
         nav2,
         explore,

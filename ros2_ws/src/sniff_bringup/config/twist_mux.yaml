@@ -1,16 +1,34 @@
+# twist_mux — rozstrzyga, kto steruje robotem
+#
+# Problem: nav2 i panel webowy publikowaly oba na /cmd_vel, wiec robot dostawal
+# sprzeczne komendy 10x na sekunde. Przelacznik w przegladarce nie mial jak tego
+# zatrzymac, bo nav2 dziala na robocie i nie sluchalo panelu.
+#
+# Teraz: nav2 -> /cmd_vel_nav, panel -> /cmd_vel_manual, twist_mux wybiera
+# jedno zrodlo i publikuje na /cmd_vel. Panel dodatkowo trzyma blokade
+# /manual_lock, ktora calkowicie odcina nav2 w trybie recznym.
+
 twist_mux:
   ros__parameters:
+
     topics:
+      # nav2 — niski priorytet, ustepuje wszystkiemu innemu
       navigation:
         topic: cmd_vel_nav
-        timeout: 0.5
+        timeout: 0.5        # brak komend przez 0.5 s = zrodlo nieaktywne
         priority: 10
+
+      # panel webowy — wyzszy priorytet, przejmuje gdy tylko nadaje
       manual:
         topic: cmd_vel_manual
         timeout: 0.5
         priority: 100
+
     locks:
+      # Blokada z panelu: gdy true, odcina wszystkie zrodla o priorytecie < 50,
+      # czyli nav2. Panel trzyma ja wlaczona przez caly czas trybu recznego,
+      # wiec nav2 nie ruszy robotem nawet miedzy komendami joysticka.
       manual_lock:
         topic: manual_lock
-        timeout: 0.0
+        timeout: 0.0        # 0 = blokada nie wygasa sama
         priority: 50
