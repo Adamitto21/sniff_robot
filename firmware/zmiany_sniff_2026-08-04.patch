@@ -1,0 +1,51 @@
+diff --git a/General_Driver/General_Driver.ino b/General_Driver/General_Driver.ino
+index 23c2adc..c6b48d1 100644
+--- a/General_Driver/General_Driver.ino
++++ b/General_Driver/General_Driver.ino
+@@ -253,9 +253,9 @@ void loop() {
+   
+   RightPidControllerCompute();
+   
+-  oledInfoUpdate();
++  // SNIFF: oledInfoUpdate();
+ 
+-  updateIMUData();
++  // SNIFF: updateIMUData();
+ 
+   if (baseFeedbackFlow) {
+     baseInfoFeedback();
+diff --git a/General_Driver/movtion_module.h b/General_Driver/movtion_module.h
+index 968664d..e18f569 100644
+--- a/General_Driver/movtion_module.h
++++ b/General_Driver/movtion_module.h
+@@ -411,8 +411,8 @@ void mm_settings(byte inputMain, byte inputModule) {
+ 
+   if (mainType == 1) {
+     WHEEL_D = 0.0800;
+-    ONE_CIRCLE_PLUSES = 2100;
+-    TRACK_WIDTH = 0.125;
++    ONE_CIRCLE_PLUSES = 1650;
++    TRACK_WIDTH = 0.172;
+     SET_MOTOR_DIR = false; // checked
+     usePIDCompute = false;
+   } else if (mainType == 2) {
+@@ -446,4 +446,4 @@ void mm_settings(byte inputMain, byte inputModule) {
+   } else if (moduleType == 2) {
+     screenLine_2 += " PT";
+   } 
+-}
+\ No newline at end of file
++}
+diff --git a/General_Driver/ugv_config.h b/General_Driver/ugv_config.h
+index f59a8b4..7600099 100644
+--- a/General_Driver/ugv_config.h
++++ b/General_Driver/ugv_config.h
+@@ -35,7 +35,7 @@ bool runNewJsonCmd = false;
+ // 1: WAVE ROVER
+ // 2: UGV02(UGV)
+ // 3: UGV01(UGV)
+-byte mainType = 1;
++byte mainType = 2;
+ 
+ // 0: [Base default] without RoArm-M2 and gimbal.
+ // 1: [RoArm default] RoArm-M2 mounted on the UGV.

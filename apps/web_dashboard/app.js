@@ -7,7 +7,7 @@
 
 'use strict';
 
-const APP_VERSION = 'js v3';   // musi zgadzać się z 'html v3' w stopce
+const APP_VERSION = 'js v5';   // musi zgadzać się z 'html v3' w stopce
 
 /* ======================= KONFIGURACJA ======================= */
 
@@ -16,16 +16,28 @@ const DEFAULT_CFG = {
   wsPort: 9090,
   videoPort: 8080,
   cmdVelTopic: '/cmd_vel',
-  cameraTopic: '/sniff/camera/image',
+  cameraTopic: '/oak/rgb/image_raw',
+  depthTopic: '/sniff/camera/depth/preview',   // OAK-D: mapa glebi ze stereo
+  camMode: 'rgb',                        // 'rgb' albo 'depth' — zapamietywany
   mapTopic: '/map',
   poseTopic: '/pose',             // slam_toolbox publikuje PoseWithCovarianceStamped
   scanTopic: '/scan',
   maxLinear: 0.4,                 // m/s
   maxAngular: 1.2,                // rad/s
   sensors: [
-    // Przykład — odkomentuj / dodaj przez UI (+ dodaj), gdy czujnik zacznie publikować:
-    // { topic: '/sniff/air_quality', type: 'std_msgs/msg/Float32', label: 'Jakość powietrza', unit: 'ppm', field: 'data' },
+    {topic: '/sniff/camera/temperature', type: 'sensor_msgs/msg/Temperature', label: 'Temperatura kamery', unit: '', field: 'data'}
   ],
+
+  /* Gotowe zestawy kart — przycisk "zasilanie" w panelu Czujniki.
+     3 ogniwa 18650 w szeregu: 12,6 V pełne, ~11 V niskie, ~9 V odcięcie. */
+  batteryTopic: '/battery',        // zmienisz w ustawieniach albo z listy topików
+  presets: {
+    battery: [
+      { field: 'voltage',    label: 'Napiecie',  unit: 'V',  warn: 10.5, crit: 9.6, invert: true },
+      { field: 'percentage', label: 'Bateria',   unit: '%',  warn: 30,   crit: 15,  invert: true, scale: 100 },
+      { field: 'current',    label: 'Prad',      unit: 'A' },
+    ],
+  },
 };
 
 const CFG_KEY = 'sniff_dashboard_cfg_v1';
@@ -218,7 +230,19 @@ function aggregate(arr, agg) {
 /* Wartość karty czujnika z wiadomości */
 function resolveValue(msg, s) {
   const raw = getPath(msg, s.field);
-  return s.agg ? aggregate(raw, s.agg) : raw;
+  const v = s.agg ? aggregate(raw, s.agg) : raw;
+  // BatteryState.percentage jest w zakresie 0..1 — na karcie chcemy procenty
+  if (s.scale && typeof v === 'number') return v * s.scale;
+  return v;
+}
+
+/* Stan karty wg progów: '' | 'warn' | 'crit'.
+   invert=true znaczy "im mniej tym gorzej" — tak działa bateria. */
+function levelOf(v, s) {
+  if (typeof v !== 'number' || !isFinite(v)) return '';
+  if (s.crit != null && (s.invert ? v <= s.crit : v >= s.crit)) return 'crit';
+  if (s.warn != null && (s.invert ? v <= s.warn : v >= s.warn)) return 'warn';
+  return '';
 }
 
 /* Rozkłada wiadomość na listę pól nadających się na kartę.
@@ -455,15 +479,30 @@ bindSlider('sliderAng', 'valAng', 'maxAngular', 'rad/s');
 
 const camImg = $('camImg');
 
+function activeCamTopic() {
+  return cfg.camMode === 'depth' ? cfg.depthTopic : cfg.cameraTopic;
+}
+
 function camConnect() {
   $('camOverlay').classList.add('hidden');
-  const url = `${VIDEO_BASE}/stream?topic=${cfg.cameraTopic}&type=mjpeg&quality=70&t=${Date.now()}`;
+  const url = `${VIDEO_BASE}/stream?topic=${activeCamTopic()}&type=mjpeg&quality=70&t=${Date.now()}`;
   camImg.src = url;
+}
+
+/* Przelaczenie RGB <-> glebia. Zmienia tylko topic strumienia,
+   reszta panelu zostaje bez zmian. */
+function setCamMode(mode) {
+  if (cfg.camMode === mode) return;
+  cfg.camMode = mode;
+  saveCfg();
+  applyCamera();
 }
 camImg.addEventListener('error', () => {
   $('camOverlay').classList.remove('hidden');
 });
 $('camRetry').addEventListener('click', camConnect);
+$('btnCamRgb').addEventListener('click', () => setCamMode('rgb'));
+$('btnCamDepth').addEventListener('click', () => setCamMode('depth'));
 
 /* ======================= MAPA (OccupancyGrid) ======================= */
 
@@ -727,6 +766,10 @@ function buildSensors() {
       valEl.appendChild(u);
       lastMsg = Date.now();
       card.classList.remove('stale');
+      // kolor karty wg progów — przy baterii widać alarm bez czytania liczby
+      const lvl = levelOf(v, s);
+      card.classList.toggle('warn', lvl === 'warn');
+      card.classList.toggle('crit', lvl === 'crit');
       if (typeof v === 'number' && isFinite(v)) {
         hist.push(v);
         if (hist.length > 120) hist.shift();
@@ -846,9 +889,21 @@ function refreshTopics() {
         toast('Sterowanie → ' + r.topic);
         applyCmdVel();
       });
-      if (isImage) mkBtn('→ kamera', () => {
+      if (r.type.indexOf('BatteryState') !== -1) mkBtn('→ zasilanie', () => {
+        cfg.batteryTopic = r.topic; saveCfg();
+        addBatteryPreset();
+        closeModal('modalTopics');
+      });
+      if (isImage) mkBtn('→ RGB', () => {
         cfg.cameraTopic = r.topic.replace(/\/compressed$/, ''); saveCfg();
-        toast('Kamera → ' + cfg.cameraTopic);
+        cfg.camMode = 'rgb'; saveCfg();
+        toast('Kamera RGB → ' + cfg.cameraTopic);
+        applyCamera();
+      });
+      if (isImage) mkBtn('→ głębia', () => {
+        cfg.depthTopic = r.topic.replace(/\/compressed$/, ''); saveCfg();
+        cfg.camMode = 'depth'; saveCfg();
+        toast('Głębia → ' + cfg.depthTopic);
         applyCamera();
       });
       list.appendChild(row);
@@ -1039,6 +1094,29 @@ function addFromPanel() {
 $('addGo').addEventListener('click', addFromPanel);
 $('addTopic').addEventListener('keydown', (e) => { if (e.key === 'Enter') addFromPanel(); });
 
+/* Gotowy zestaw kart zasilania — jedno kliknięcie zamiast ręcznego wybierania pól.
+   Progi są już ustawione pod 3 ogniwa 18650 (patrz DEFAULT_CFG.presets). */
+function addBatteryPreset() {
+  const topic = cfg.batteryTopic || '/battery';
+  const preset = (DEFAULT_CFG.presets && DEFAULT_CFG.presets.battery) || [];
+  let added = 0;
+  for (const p of preset) {
+    const dup = cfg.sensors.some((s) => s.topic === topic && s.field === p.field);
+    if (dup) continue;
+    cfg.sensors.push(Object.assign({
+      topic,
+      type: 'sensor_msgs/msg/BatteryState',
+      agg: null,
+    }, p));
+    added++;
+  }
+  saveCfg();
+  rebuildSensorSubs();
+  if (added) toast('Dodano karty zasilania (' + topic + ')');
+  else toast('Karty zasilania już są');
+}
+$('addBattery').addEventListener('click', addBatteryPreset);
+
 /* ======================= USTAWIENIA ======================= */
 
 function openSettings() {
@@ -1047,9 +1125,11 @@ function openSettings() {
   $('f_videoPort').value = cfg.videoPort;
   $('f_cmdVelTopic').value = cfg.cmdVelTopic;
   $('f_cameraTopic').value = cfg.cameraTopic;
+  $('f_depthTopic').value = cfg.depthTopic;
   $('f_mapTopic').value = cfg.mapTopic;
   $('f_poseTopic').value = cfg.poseTopic;
   $('f_scanTopic').value = cfg.scanTopic;
+  $('f_batteryTopic').value = cfg.batteryTopic;
   $('modalSettings').classList.remove('hidden');
 }
 
@@ -1061,9 +1141,11 @@ $('btnCfgSave').addEventListener('click', () => {
   cfg.videoPort = parseInt($('f_videoPort').value, 10) || 8080;
   cfg.cmdVelTopic = $('f_cmdVelTopic').value.trim() || '/cmd_vel';
   cfg.cameraTopic = $('f_cameraTopic').value.trim() || DEFAULT_CFG.cameraTopic;
+  cfg.depthTopic = $('f_depthTopic').value.trim() || DEFAULT_CFG.depthTopic;
   cfg.mapTopic = $('f_mapTopic').value.trim() || '/map';
   cfg.poseTopic = $('f_poseTopic').value.trim() || '/pose';
   cfg.scanTopic = $('f_scanTopic').value.trim() || '/scan';
+  cfg.batteryTopic = $('f_batteryTopic').value.trim() || '/battery';
   saveCfg();
   location.reload();
 });
@@ -1092,7 +1174,12 @@ function applyCmdVel() {
   $('cmdVelBadge').textContent = cfg.cmdVelTopic;
 }
 function applyCamera() {
-  $('camTopicBadge').textContent = cfg.cameraTopic;
+  const depth = cfg.camMode === 'depth';
+  $('camTopicBadge').textContent = activeCamTopic();
+  const rgbBtn = $('btnCamRgb'), depthBtn = $('btnCamDepth');
+  if (rgbBtn) rgbBtn.classList.toggle('on', !depth);
+  if (depthBtn) depthBtn.classList.toggle('on', depth);
+  camImg.alt = depth ? 'Mapa głębi z kamery robota' : 'Obraz z kamery robota';
   camConnect();
 }
 
