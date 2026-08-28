@@ -286,3 +286,13 @@ footer{padding:8px 16px 18px;text-align:center;font-size:11px;color:var(--muted)
 .sensor-card.crit{border-color:var(--danger);background:#241619}
 .sensor-card.crit .s-val{color:var(--danger)}
 .sensor-card.crit .s-label{color:var(--danger)}
+
+/* ---------- przelacznik trybu jazdy ---------- */
+.mode-switch{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.mode-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-right:2px}
+
+/* joystick zablokowany w trybie autonomicznym */
+#joy.locked{opacity:.3;filter:grayscale(1);cursor:not-allowed}
+#joy.locked #knob{background:radial-gradient(circle at 34% 30%,#8a949c,#5b656d 60%,#3a4248);
+  box-shadow:none}
