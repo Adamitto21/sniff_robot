@@ -7,19 +7,13 @@ explore_node:
     costmap_updates_topic: map_updates
     visualize: true
 
-    # Jak czesto przeliczac granice i wybierac nowy cel
     planner_frequency: 0.33
     progress_timeout: 30.0
 
-    # Wagi wyboru celu:
-    # potential_scale - kara za odleglosc (wieksze = blizsze cele)
-    # gain_scale      - premia za wielkosc granicy (wieksze = wieksze obszary)
     potential_scale: 1.0
     orientation_scale: 0.0
     gain_scale: 5.0
 
     transform_tolerance: 0.5
 
-    # Minimalna dlugosc granicy [m]. Robot ma ~0.23 m szerokosci,
-    # wiec granice ponizej 0.4 m to szum albo przejscia nie do przebycia.
     min_frontier_size: 0.75
