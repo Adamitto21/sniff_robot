@@ -36,7 +36,7 @@ def main(args=None):
 
     try:
         while rclpy.ok():
-            print('Wpisz komende byku')
+            print('Wpisz komende ruchu')
             try:
                 user_input = input().strip().lower()
                 node.move(user_input)
