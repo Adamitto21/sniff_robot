@@ -10,22 +10,22 @@ class Pms5003Node(Node):
     def __init__(self):
         super().__init__('pms5003_node')
 
-        self.declare_parameter('port', '/dev/ttyUSB0')
+        self.declare_parameter('sensor_port', '/dev/ttyUSB1')
         self.declare_parameter('publish_rate', 2.0)
 
-        port = self.get_parameter('port').value
+        sensor_port = self.get_parameter('sensor_port').value
         rate = self.get_parameter('publish_rate').value
 
         self.pub = self.create_publisher(Pms5003, '/sniff/pms5003', 10)
         self.timer = self.create_timer(1.0 / rate, self.read_and_publish)
 
         try:
-            self.ser = serial.Serial(port, baudrate=9600, timeout=3)
+            self.ser = serial.Serial(sensor_port, baudrate=9600, timeout=3)
             self.ser.setDTR(False)
             self.ser.setRTS(False)
-            self.get_logger().info(f'PMS5003 połączony na {port}')
+            self.get_logger().info(f'PMS5003 połączony na {sensor_port}')
         except serial.SerialException as e:
-            self.get_logger().error(f'Nie można otworzyć portu {port}: {e}')
+            self.get_logger().error(f'Nie można otworzyć portu {sensor_port}: {e}')
             self.ser = None
 
     def read_and_publish(self):

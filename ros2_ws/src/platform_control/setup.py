@@ -12,7 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', 'platform_control', 'launch'), glob('launch/*.launch.py'))
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py'))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -29,7 +29,8 @@ setup(
         'console_scripts': [
             'platform_driver = platform_control.platform_driver:main',
             'keyboard = platform_control.keyboard:main',
-            'odometry = platform_control.platform_brain:main'
+            'odometry = platform_control.platform_brain:main',
+            'patrol = platform_control.patrol_node:main'
         ],
     },
 )

@@ -7,7 +7,7 @@
 
 'use strict';
 
-const APP_VERSION = 'js v5';   // musi zgadzać się z 'html v3' w stopce
+const APP_VERSION = 'js v8';   // musi zgadzać się z 'html v3' w stopce
 
 /* ======================= KONFIGURACJA ======================= */
 
@@ -15,24 +15,42 @@ const DEFAULT_CFG = {
   host: '',                       // puste = host, z którego serwowana jest strona
   wsPort: 9090,
   videoPort: 8080,
-  cmdVelTopic: '/cmd_vel',
-  cameraTopic: '/oak/rgb/image_raw',
-  depthTopic: '/sniff/camera/depth/preview',   // OAK-D: mapa glebi ze stereo
+  cmdVelTopic: '/cmd_vel_manual',   // wejscie twist_mux dla sterowania recznego
+  lockTopic: '/manual_lock',        // blokada nav2 (std_msgs/Bool) dla twist_mux
+  // Wstrzymanie samego nav2, nie tylko jego komend. Bez tego nav2 dalej liczy,
+  // widzi brak postepu, uruchamia zachowania ratunkowe i porzuca cel — a
+  // explore_lite wpisuje ten obszar na czarna liste.
+  navService: '/lifecycle_manager_navigation/manage_nodes',
+  pauseNav: true,
+  cameraTopic: '/sniff/camera/image',
+  depthTopic: '/sniff/camera/depth_image',   // OAK-D: mapa glebi ze stereo
   camMode: 'rgb',                        // 'rgb' albo 'depth' — zapamietywany
   mapTopic: '/map',
   poseTopic: '/pose',             // slam_toolbox publikuje PoseWithCovarianceStamped
   scanTopic: '/scan',
+  driveMode: 'manual',            // 'manual' | 'auto' — zapamietywany
   maxLinear: 0.4,                 // m/s
   maxAngular: 1.2,                // rad/s
   sensors: [
-    {topic: '/sniff/camera/temperature', type: 'sensor_msgs/msg/Temperature', label: 'Temperatura kamery', unit: '', field: 'data'}
+    {topic: '/sniff/camera/temperature', type: 'sensor_msgs/msg/Temperature',
+      label: 'Temperatura kamery', unit: '', field: 'temperature'},
+    {topic: '/sniff/pms5003', type: 'sniff_msgs/msg/Pms5003',
+      label: 'PM2.5', unit: 'ug/m3', field: 'pm25'},
+    {topic: '/sniff/pms5003', type: 'sniff_msgs/msg/Pms5003',
+      label: 'PM10', unit: 'ug/m3', field: 'pm10'},
+    {topic: '/sniff/detection_log', type: 'std_msgs/msg/String',
+      label: 'Ostatnia detekcja', unit: '', field: 'data'},
   ],
 
-  /* Gotowe zestawy kart — przycisk "zasilanie" w panelu Czujniki.
+presetVersion: 3,               // podbicie dorzuca nowe domyslne czujniki
+
+/* Gotowe zestawy kart — przycisk "zasilanie" w panelu Czujniki.
+
      3 ogniwa 18650 w szeregu: 12,6 V pełne, ~11 V niskie, ~9 V odcięcie. */
-  batteryTopic: '/battery',        // zmienisz w ustawieniach albo z listy topików
-  presets: {
-    battery: [
+
+batteryTopic: '/battery',        // zmienisz w ustawieniach albo z listy topików
+presets: {
+battery: [
       { field: 'voltage',    label: 'Napiecie',  unit: 'V',  warn: 10.5, crit: 9.6, invert: true },
       { field: 'percentage', label: 'Bateria',   unit: '%',  warn: 30,   crit: 15,  invert: true, scale: 100 },
       { field: 'current',    label: 'Prad',      unit: 'A' },
@@ -45,10 +63,29 @@ const CFG_KEY = 'sniff_dashboard_cfg_v1';
 function loadCfg() {
   try {
     const raw = localStorage.getItem(CFG_KEY);
-    if (raw) return Object.assign({}, DEFAULT_CFG, JSON.parse(raw));
+    if (raw) {
+      const saved = JSON.parse(raw);
+      return migrateCfg(Object.assign({}, DEFAULT_CFG, saved), saved.presetVersion);
+    }
   } catch (e) { /* localStorage niedostępny — jedziemy na domyślnych */ }
   return Object.assign({}, DEFAULT_CFG);
 }
+/* Zapisana konfiguracja nadpisuje DEFAULT_CFG, wiec nowe domyslne czujniki
+   nie dotarlyby do kogos, kto juz uzywal panelu. Przy podbiciu presetVersion
+   dokladamy brakujace — bez ruszania tego, co uzytkownik sam dodal. */
+function migrateCfg(c, savedVersion) {
+  // Wersje bierzemy z ZAPISANEJ konfiguracji, nie ze scalonej: Object.assign
+  // wypelnia brakujace pola z DEFAULT_CFG, wiec scalona zawsze wygladalaby
+  // na aktualna i migracja nigdy by nie zadzialala.
+  if ((savedVersion || 0) >= DEFAULT_CFG.presetVersion) return c;
+  for (const d of DEFAULT_CFG.sensors) {
+    const has = (c.sensors || []).some((x) => x.topic === d.topic && x.field === d.field);
+    if (!has) (c.sensors = c.sensors || []).push(Object.assign({}, d));
+  }
+  c.presetVersion = DEFAULT_CFG.presetVersion;
+  return c;
+}
+
 function saveCfg() {
   try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) {}
 }
@@ -350,6 +387,8 @@ function updateSpeedUI(lin, ang) {
 /* pętla 10 Hz — publikuje tylko gdy sterujemy (+ krótka seria zer po puszczeniu) */
 setInterval(() => {
   if (!ros.connected) return;
+  pubLock(!isAuto());            // podtrzymanie stanu blokady dla twist_mux
+  if (isAuto()) return;          // nav2 steruje — panel nie dotyka cmd_vel
   if (drive.engaged) {
     const c = currentCmd();
     pubTwist(c.lin, c.ang);
@@ -375,6 +414,16 @@ function releaseDrive() {
 }
 
 function stopAll(flash = true) {
+  // STOP dziala takze w trybie autonomicznym i przejmuje sterowanie z powrotem,
+  // inaczej nav2 wznowiloby jazde sekunde pozniej
+  if (isAuto()) {
+    cfg.driveMode = 'manual';
+    saveCfg();
+    applyMode();
+    for (let i = 0; i < 3; i++) pubLock(true);   // odetnij nav2 natychmiast
+    navCommand(NAV_PAUSE, 'wstrzymane');
+    if (flash) toast('STOP \u2014 przejeto sterowanie, tryb reczny');
+  }
   keysDown.clear();
   drive.engaged = false;
   drive.nx = 0; drive.ny = 0;
@@ -385,6 +434,102 @@ function stopAll(flash = true) {
     setTimeout(() => $('btnStop').classList.remove('flash'), 250);
     toast('STOP — wysłano zatrzymanie');
   }
+}
+
+/* ---------- tryb jazdy: reczny / autonomiczny ---------- */
+
+function isAuto() { return cfg.driveMode === 'auto'; }
+
+/* nav2_msgs/srv/ManageLifecycleNodes — wartosci wg dokumentacji Humble.
+   UWAGA: RESET=3 i SHUTDOWN=4, wiec pomylka w tej stalej wylaczylaby nawigacje. */
+const NAV_PAUSE = 1;
+const NAV_RESUME = 2;
+
+let navBusy = false;
+
+function setNavStatus(txt, cls) {
+  const el = $('modeStatus');
+  if (!el) return;
+  el.textContent = txt;
+  el.className = 'mode-status' + (cls ? ' ' + cls : '');
+}
+
+/* Wstrzymuje albo wznawia nav2. Wynik pokazujemy na stronie — cicha porazka
+   tej komendy oznaczalaby, ze robot dalej jedzie mimo trybu recznego. */
+function navCommand(command, label) {
+  if (!cfg.pauseNav || !cfg.navService) { setNavStatus(''); return; }
+  if (!ros.connected) { setNavStatus('nav2: brak polaczenia', 'bad'); return; }
+
+  navBusy = true;
+  setNavStatus('nav2: ' + label + '\u2026');
+  let done = false;
+  const timer = setTimeout(() => {
+    if (done) return;
+    done = true; navBusy = false;
+    setNavStatus('nav2: brak odpowiedzi (sprawdz nazwe uslugi)', 'bad');
+  }, 5000);
+
+  ros.callService(cfg.navService, { command }, (vals, result) => {
+    if (done) return;
+    done = true; clearTimeout(timer); navBusy = false;
+    const ok = result !== false && (!vals || vals.success !== false);
+    setNavStatus(ok ? 'nav2: ' + label : 'nav2: ' + label + ' nie powiodlo sie',
+                 ok ? 'good' : 'bad');
+  });
+}
+
+function applyMode() {
+  const auto = isAuto();
+  const mBtn = $('btnModeManual'), aBtn = $('btnModeAuto');
+  if (mBtn) mBtn.classList.toggle('on', !auto);
+  if (aBtn) aBtn.classList.toggle('on', auto);
+  joyEl.classList.toggle('locked', auto);
+  const hint = $('modeHint');
+  if (hint) {
+    hint.textContent = auto
+      ? 'sterowanie po stronie nav2 \u2014 joystick i klawiatura wy\u0142\u0105czone'
+      : 'klawiatura: W A S D / strza\u0142ki \u00b7 spacja = STOP';
+  }
+  $('cmdVelBadge').textContent = auto ? 'nav2 \u2192 /cmd_vel' : cfg.cmdVelTopic;
+  if (!navBusy) setNavStatus(cfg.pauseNav ? '' : 'nav2: wstrzymywanie wylaczone');
+}
+
+/* Blokada dla twist_mux: true = odetnij nav2, sterujemy recznie.
+   To ona zatrzymuje robota — sam przelacznik w przegladarce nie ma
+   jak wplynac na nav2 dzialajace na Jetsonie. */
+function pubLock(state) {
+  if (!cfg.lockTopic) return;
+  ros.publish(cfg.lockTopic, { data: !!state });
+}
+
+function setMode(mode) {
+  if (cfg.driveMode === mode) return;
+
+  if (mode === 'auto') {
+    // najpierw wznawiamy nav2, potem zdejmujemy blokade — inaczej robot
+    // dostalby komendy zanim nawigacja bedzie gotowa
+    navCommand(NAV_RESUME, 'wznowione');
+    for (let i = 0; i < 3; i++) pubLock(false);
+    keysDown.clear();
+    drive.engaged = false;
+    drive.nx = 0; drive.ny = 0;
+    joyReset();
+    for (let i = 0; i < 3; i++) pubTwist(0, 0);   // czyste zwolnienie
+    drive.zeroBurst = 0;
+    updateSpeedUI(0, 0);
+  } else {
+    // blokada NAJPIERW (dziala natychmiast), dopiero potem wstrzymanie nav2
+    // (trwa chwile i moze sie nie powiesc) — robot staje w kazdym przypadku
+    for (let i = 0; i < 3; i++) pubLock(true);
+    pubTwist(0, 0);
+    drive.zeroBurst = 3;
+    navCommand(NAV_PAUSE, 'wstrzymane');
+  }
+
+  cfg.driveMode = mode;
+  saveCfg();
+  applyMode();
+  toast(mode === 'auto' ? 'Tryb autonomiczny' : 'Tryb reczny');
 }
 
 /* ---------- wirtualny joystick (mysz + dotyk, pointer events) ---------- */
@@ -408,6 +553,10 @@ function joyMove(e) {
 }
 
 joyEl.addEventListener('pointerdown', (e) => {
+  if (isAuto()) {                // zablokowany — przypomnij dlaczego
+    toast('Tryb autonomiczny \u2014 przelacz na reczny, aby sterowac');
+    return;
+  }
   e.preventDefault();
   joyPointer = e.pointerId;
   joyEl.setPointerCapture(e.pointerId);
@@ -445,6 +594,7 @@ function keysApply() {
 window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.code === 'Space') { e.preventDefault(); stopAll(); return; }
+  if (isAuto()) return;          // w trybie autonomicznym klawisze jazdy nieczynne
   const dir = KEYMAP[e.code];
   if (dir) { e.preventDefault(); keysDown.add(dir); keysApply(); }
 });
@@ -456,6 +606,9 @@ window.addEventListener('keyup', (e) => {
 /* bezpieczeństwo: schowana karta / utrata fokusu → stop */
 document.addEventListener('visibilitychange', () => { if (document.hidden) stopAll(false); });
 window.addEventListener('blur', () => stopAll(false));
+
+$('btnModeManual').addEventListener('click', () => setMode('manual'));
+$('btnModeAuto').addEventListener('click', () => setMode('auto'));
 
 $('btnStop').addEventListener('click', () => stopAll());
 $('stopFab').addEventListener('click', () => stopAll());
@@ -1124,6 +1277,9 @@ function openSettings() {
   $('f_wsPort').value = cfg.wsPort;
   $('f_videoPort').value = cfg.videoPort;
   $('f_cmdVelTopic').value = cfg.cmdVelTopic;
+  $('f_lockTopic').value = cfg.lockTopic;
+  $('f_navService').value = cfg.navService;
+  $('f_pauseNav').checked = !!cfg.pauseNav;
   $('f_cameraTopic').value = cfg.cameraTopic;
   $('f_depthTopic').value = cfg.depthTopic;
   $('f_mapTopic').value = cfg.mapTopic;
@@ -1139,7 +1295,10 @@ $('btnCfgSave').addEventListener('click', () => {
   cfg.host = $('f_host').value.trim();
   cfg.wsPort = parseInt($('f_wsPort').value, 10) || 9090;
   cfg.videoPort = parseInt($('f_videoPort').value, 10) || 8080;
-  cfg.cmdVelTopic = $('f_cmdVelTopic').value.trim() || '/cmd_vel';
+  cfg.cmdVelTopic = $('f_cmdVelTopic').value.trim() || DEFAULT_CFG.cmdVelTopic;
+  cfg.lockTopic = $('f_lockTopic').value.trim();
+  cfg.navService = $('f_navService').value.trim();
+  cfg.pauseNav = $('f_pauseNav').checked;
   cfg.cameraTopic = $('f_cameraTopic').value.trim() || DEFAULT_CFG.cameraTopic;
   cfg.depthTopic = $('f_depthTopic').value.trim() || DEFAULT_CFG.depthTopic;
   cfg.mapTopic = $('f_mapTopic').value.trim() || '/map';
@@ -1171,6 +1330,7 @@ document.querySelectorAll('.modal').forEach((m) => {
 
 function applyCmdVel() {
   ros.advertise(cfg.cmdVelTopic, 'geometry_msgs/msg/Twist');
+  if (cfg.lockTopic) ros.advertise(cfg.lockTopic, 'std_msgs/msg/Bool');
   $('cmdVelBadge').textContent = cfg.cmdVelTopic;
 }
 function applyCamera() {
@@ -1194,6 +1354,7 @@ function init() {
 
   applyCmdVel();
   applyCamera();
+  applyMode();
 
   ros.subscribe(cfg.mapTopic, 'nav_msgs/msg/OccupancyGrid', onMapMsg, 2000);
   ros.subscribe(cfg.poseTopic, 'geometry_msgs/msg/PoseWithCovarianceStamped', onPoseMsg, 200);

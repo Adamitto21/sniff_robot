@@ -18,7 +18,9 @@ setup(
     entry_points={
         'console_scripts': [
             'oak_detector = sniff_vision.oak_detector_node:main',
-            'web_viewer = sniff_vision.web_viewer_node:main',
+	    'oak_detector_hq = sniff_vision.oak_detector_hq_node:main',
+            'video_recorder = sniff_vision.video_recorder_node:main',
+            'map_snapshot = sniff_vision.map_snapshot_node:main',
         ],
     },
 )

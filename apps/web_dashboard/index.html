@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>SNIFF ROBOT — panel sterowania</title>
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
 
@@ -78,11 +78,17 @@
     <div class="drive-wrap">
 
       <div class="joy-col">
+        <div class="mode-switch">
+          <span class="mode-label">tryb</span>
+          <button id="btnModeManual" class="btn btn-sm on" title="Sterowanie z panelu">ręczny</button>
+          <button id="btnModeAuto" class="btn btn-sm" title="Sterowanie przez nav2">autonomiczny</button>
+        </div>
+        <div id="modeStatus" class="mode-status"></div>
         <div id="joy">
           <div class="joy-cross"></div>
           <div id="knob"></div>
         </div>
-        <div class="keys-hint">klawiatura: <span class="mono">W A S D</span> / strzałki · <span class="mono">spacja</span> = STOP</div>
+        <div class="keys-hint" id="modeHint">klawiatura: W A S D / strzałki · spacja = STOP</div>
       </div>
 
       <div class="drive-side">
@@ -141,7 +147,7 @@
 
 </main>
 
-<footer>sniff_robot · rosbridge <span id="footUrl" class="mono"></span> · <span class="mono">html v5</span> · <span id="appVer" class="mono">js ?</span></footer>
+<footer>sniff_robot · rosbridge <span id="footUrl" class="mono"></span> · <span class="mono">html v8</span> · <span id="appVer" class="mono">js ?</span></footer>
 
 <!-- STOP zawsze pod ręką (mobile) -->
 <button id="stopFab" title="Zatrzymaj robota">STOP</button>
@@ -183,7 +189,15 @@
         <label>Port rosbridge<input id="f_wsPort" type="number"></label>
         <label>Port wideo<input id="f_videoPort" type="number"></label>
       </div>
-      <label>Topic sterowania (Twist)<input id="f_cmdVelTopic" class="mono"></label>
+      <div class="form-2">
+        <label>Topic sterowania recznego<input id="f_cmdVelTopic" class="mono"></label>
+        <label>Topic blokady nav2<input id="f_lockTopic" class="mono"></label>
+      </div>
+      <label>Usluga zarzadzania nav2<input id="f_navService" class="mono"></label>
+      <label class="check-row">
+        <input type="checkbox" id="f_pauseNav">
+        <span>Wstrzymuj nav2 przy przejsciu w tryb reczny (zalecane)</span>
+      </label>
       <div class="form-2">
         <label>Topic kamery RGB<input id="f_cameraTopic" class="mono"></label>
         <label>Topic głębi<input id="f_depthTopic" class="mono"></label>
@@ -206,6 +220,6 @@
 
 <div id="toast" class="hidden"></div>
 
-<script src="app.js?v=5" defer></script>
+<script src="app.js?v=8" defer></script>
 </body>
 </html>

@@ -14,6 +14,10 @@
   <exec_depend>sllidar_ros2</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>robot_description</exec_depend>
+  <exec_depend>platform_control</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
 
   <!--KAMERA-->
   <exec_depend>sniff_vision</exec_depend>
@@ -25,6 +29,7 @@
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>rosapi</exec_depend>
   <exec_depend>web_video_server</exec_depend>
+  <exec_depend>twist_mux</exec_depend>
   
   <exec_depend>sniff_msgs</exec_depend>
 

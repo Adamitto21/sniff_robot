@@ -24,21 +24,42 @@ class UnifiedUgvNode(Node):
         super().__init__('unified_ugv_node')
         self.declare_parameter('serial_port', '/dev/ttyCH343USB0')
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('track_width', 0.44)
-        self.declare_parameter('meters_per_tick', 0.0105)
+        self.declare_parameter('track_width', 0.172)
+        self.declare_parameter('meters_per_tick', 0.00895)
         self.declare_parameter('max_tick_delta', 100)
+
+        self.declare_parameter('min_angular_cmd', 0.30)
+
+        self.declare_parameter('odom_frame', 'odom')
+        self.declare_parameter('base_frame', 'base_footprint')
+
+        self.declare_parameter('cmd_vel_timeout', 0.5)
+
+
+        self.declare_parameter('motor_pid_p', 0)
+        self.declare_parameter('motor_pid_i', 800)
+        self.declare_parameter('motor_pid_d', 0)
 
         self.serial_port = self.get_parameter('serial_port').value
         baudrate = self.get_parameter('baudrate').value
         self.track_width = self.get_parameter('track_width').value
         self.mpt = self.get_parameter('meters_per_tick').value
         self.max_tick_delta = self.get_parameter('max_tick_delta').value
+        self.min_angular_cmd = self.get_parameter('min_angular_cmd').value
+        self.odom_frame = self.get_parameter('odom_frame').value
+        self.base_frame = self.get_parameter('base_frame').value
+        self.cmd_vel_timeout = self.get_parameter('cmd_vel_timeout').value
+        self.motor_pid_p = self.get_parameter('motor_pid_p').value
+        self.motor_pid_i = self.get_parameter('motor_pid_i').value
+        self.motor_pid_d = self.get_parameter('motor_pid_d').value
 
         self.x = 0.0
         self.y = 0.0
         self.th = 0.0
         self.odl_prev = None
         self.odr_prev = None
+
+        self.last_odom_time = None
 
         try:
             self.ser = serial.Serial(self.serial_port, baudrate, timeout=1)
@@ -53,12 +74,16 @@ class UnifiedUgvNode(Node):
         self.tf_broadcaster = TransformBroadcaster(self)
         self.cmd_vel_sub = self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 10)
 
-        # Feedback WYLACZONY domyslnie (baseFeedbackFlow=0). Wlaczamy strumien
-        # T:1001 i ponawiamy co 5 s (przezywa reset ESP32).
         self.enable_feedback_stream()
         self.create_timer(5.0, self.enable_feedback_stream)
 
-        # --- Watek odczytu UART ---
+        self.set_motor_pid()
+
+
+        self.last_cmd_time = self.get_clock().now()
+        self.stopped = True
+        self.create_timer(0.2, self.cmd_watchdog)
+
         self.running = True
         self.read_thread = threading.Thread(target=self.uart_receive_loop, daemon=True)
         self.read_thread.start()
@@ -70,21 +95,39 @@ class UnifiedUgvNode(Node):
             self.get_logger().warn(f"Nie udalo sie wyslac przez UART: {e}")
 
     def enable_feedback_stream(self):
-        # CMD_BASE_FEEDBACK_FLOW = 131, cmd=1 -> ciagly strumien ramek T:1001
         self._send({'T': 131, 'cmd': 1})
 
+    def set_motor_pid(self):
+        self._send({
+            'T': 2,
+            'P': self.motor_pid_p,
+            'I': self.motor_pid_i,
+            'D': self.motor_pid_d,
+            'L': 255,
+        })
+        self.get_logger().info(
+            f"Ustawiono PID silnikow: P={self.motor_pid_p}, "
+            f"I={self.motor_pid_i}, D={self.motor_pid_d}")
+
+    def cmd_watchdog(self):
+        dt = (self.get_clock().now() - self.last_cmd_time).nanoseconds / 1e9
+        if dt > self.cmd_vel_timeout and not self.stopped:
+            self._send({'T': 13, 'X': 0.0, 'Z': 0.0})
+            self.stopped = True
+            self.get_logger().warn(
+                f"Brak /cmd_vel przez {dt:.1f}s - STOP")
+
     def cmd_vel_callback(self, msg):
+        self.last_cmd_time = self.get_clock().now()
+        self.stopped = False
+
         linear_velocity = msg.linear.x
         angular_velocity = msg.angular.z
 
-        if linear_velocity == 0:
-            if 0 < angular_velocity < 0.2:
-                angular_velocity = 0.2
-            elif -0.2 < angular_velocity < 0:
-                angular_velocity = -0.2
+        if abs(linear_velocity) < 1e-6 and 1e-6 < abs(angular_velocity) < self.min_angular_cmd:
+            angular_velocity = math.copysign(self.min_angular_cmd, angular_velocity)
 
-        # T:13 = CMD_ROS_CTRL (int). X=liniowa [m/s], Z=katowa [rad/s]
-        self._send({'T': 13, 'X': linear_velocity, 'Z': angular_velocity})
+        self._send({'T': 13, 'X': float(linear_velocity), 'Z': float(angular_velocity)})
 
     def uart_receive_loop(self):
         while self.running and rclpy.ok():
@@ -134,20 +177,28 @@ class UnifiedUgvNode(Node):
         self.x += d_center * math.cos(self.th + d_theta / 2.0)
         self.y += d_center * math.sin(self.th + d_theta / 2.0)
         self.th += d_theta
-        self.th = math.atan2(math.sin(self.th), math.cos(self.th))  # normalizacja (-pi, pi]
+        self.th = math.atan2(math.sin(self.th), math.cos(self.th))
 
-        v_left = float(data.get("L", 0.0))
-        v_right = float(data.get("R", 0.0))
-        v = (v_right + v_left) / 2.0
-        w = (v_right - v_left) / self.track_width
+        if self.last_odom_time is not None:
+            dt = (current_time - self.last_odom_time).nanoseconds / 1e9
+        else:
+            dt = 0.0
+        self.last_odom_time = current_time
+
+        if dt > 0.001:
+            v = d_center / dt
+            w = d_theta / dt
+        else:
+            v = 0.0
+            w = 0.0
 
         q = euler_to_quaternion(0, 0, self.th)
         stamp = current_time.to_msg()
 
         t = TransformStamped()
         t.header.stamp = stamp
-        t.header.frame_id = 'odom'
-        t.child_frame_id = 'base_link'
+        t.header.frame_id = self.odom_frame
+        t.child_frame_id = self.base_frame
         t.transform.translation.x = self.x
         t.transform.translation.y = self.y
         t.transform.translation.z = 0.0
@@ -159,8 +210,8 @@ class UnifiedUgvNode(Node):
 
         odom = Odometry()
         odom.header.stamp = stamp
-        odom.header.frame_id = 'odom'
-        odom.child_frame_id = 'base_link'
+        odom.header.frame_id = self.odom_frame
+        odom.child_frame_id = self.base_frame
         odom.pose.pose.position.x = self.x
         odom.pose.pose.position.y = self.y
         odom.pose.pose.orientation.x = q[0]
@@ -170,7 +221,6 @@ class UnifiedUgvNode(Node):
         odom.twist.twist.linear.x = v
         odom.twist.twist.angular.z = w
 
-        # Kowariancje (diagonala) - wymagane przez Nav2/EKF
         odom.pose.covariance[0] = 0.01    # x
         odom.pose.covariance[7] = 0.01    # y
         odom.pose.covariance[35] = 0.05   # yaw
@@ -182,7 +232,9 @@ class UnifiedUgvNode(Node):
         self.get_logger().info("Zamykanie wezla...")
         self.running = False
         try:
-            self._send({'T': 131, 'cmd': 0})  # wylacz strumien feedbacku
+            self._send({'T': 13, 'X': 0.0, 'Z': 0.0})
+            time.sleep(0.1)
+            self._send({'T': 131, 'cmd': 0})
         except Exception:
             pass
         if hasattr(self, 'ser') and self.ser.is_open:
