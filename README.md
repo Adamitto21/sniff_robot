@@ -33,7 +33,7 @@ System integruje autonomiczną nawigację, mapowanie pomieszczeń, detekcję obi
 ---
 
 # Architektura systemu
-<img src="images/architecture.png" alt="Widok z przodu" width="40%" />
+<img src="images/architecture.png" alt="Widok z przodu" width="90%" />
 
 
 System został podzielony na trzy główne podsystemy:
@@ -171,7 +171,7 @@ sniff_robot-main
 # Konstrukcja robota
 
 ## Model CAD
-<img src="images/exploded_view.png" alt="Widok z przodu" width="40%" />
+<img src="images/exploded_view.png" alt="Widok z przodu" width="90%" />
 
 
 Projekt obejmował opracowanie własnej obudowy drukowanej w technologii 3D.
@@ -190,7 +190,7 @@ Zaprojektowano dedykowane mocowania dla:
 # Wyniki działania
 
 ## Mapowanie środowiska
-<img src="images/slam_map.png" alt="Widok z przodu" width="40%" />
+<img src="images/slam_map.png" alt="Widok z przodu" width="90%" />
 
 
 Robot wykorzystuje pakiet `slam_toolbox` do budowy map nieznanego środowiska.
@@ -204,14 +204,14 @@ Mapa tworzona jest w czasie rzeczywistym na podstawie danych z lidaru i kamery g
 ### Detekcja obiektów
 
 
-<img src="images/yolo_detection.jpg" alt="Widok z przodu" width="40%" />
+<img src="images/yolo_detection.jpg" alt="Widok z przodu" width="90%" />
 
 Rozpoznawanie obiektów realizowane jest przy pomocy sieci YOLOv5n uruchamianej bezpośrednio na procesorze wizyjnym kamery OAK-D Lite.
 
 ---
 
 ### Mapa głębi
-<img src="images/depth_map.jpg" alt="Widok z przodu" width="40%" />
+<img src="images/depth_map.jpg" alt="Widok z przodu" width="90%" />
 
 
 Kamera OAK-D Lite generuje mapę głębi wykorzystywaną przez system percepcji oraz przez moduł autonomicznej nawigacji.
@@ -219,7 +219,7 @@ Kamera OAK-D Lite generuje mapę głębi wykorzystywaną przez system percepcji 
 ---
 
 ## Dashboard operatorski
-<img src="images/dashboard.png" alt="Widok z przodu" width="70%" />
+<img src="images/dashboard.png" alt="Widok z przodu" width="90%" />
 
 
 Autorski panel operatorski umożliwia:
