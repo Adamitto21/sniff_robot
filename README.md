@@ -448,6 +448,12 @@ Zaleca się dostosowanie do uprzednio przyjętego ułożenia wpięcia przewodów
   </figcaption>
 </p>
 
+* **Dodatkowa uwaga dot. sprzętu:** W przeszłości występowały sprzętowe problemy z lidarem wymagające wymiany złącz JST. Jeśli porty w systemie przypisane są poprawnie, a lidar nadal nie reaguje, sprawdź ciągłość i jakość połączeń przewodów.
+
+<p align="center">
+  <img src="images/JST_lidara.jpg" width="60%" />
+</p>
+
 ---
 
 ## Problemy z nawigacją
