@@ -5,7 +5,7 @@
   <version>0.1.0</version>
   <description>Bringup: whole robot or individual parts</description>
   <maintainer email="root@todo.todo">root</maintainer>
-  <license>TODO: License declaration</license>
+  <license>AGPL-3.0-only</license>
 
   <!--ODOMETRIA-->
   <exec_depend>platform_control</exec_depend>

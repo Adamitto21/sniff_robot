@@ -21,7 +21,7 @@ setup(
     maintainer='root',
     maintainer_email='root@todo.todo',
     description='Bringup: whole robot or individual parts',
-    license='TODO: License declaration',
+    license='AGPL-3.0-only',
     extras_require={
         'test': [
             'pytest',

@@ -25,7 +25,7 @@ setup(
     maintainer='Grzegorz',
     maintainer_email='grzegorz@todo.todo',
     description='Opis URDF i symulacja Gazebo robota SNIFF',
-    license='MIT',
+    license='AGPL-3.0-only',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

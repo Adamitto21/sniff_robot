@@ -19,7 +19,7 @@ setup(
     maintainer='root',
     maintainer_email='adam.lamecki04@gmail.com',
     description='Paczka do testowania platformy',
-    license='TODO: License declaration',
+    license='AGPL-3.0-only',
     extras_require={
         'test': [
             'pytest',

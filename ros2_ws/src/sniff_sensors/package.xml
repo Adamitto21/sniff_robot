@@ -5,7 +5,7 @@
   <version>0.0.1</version>
   <description>SNIFF sensor nodes - PMS5003, SCD40</description>
   <maintainer email="sniff@put.poznan.pl">SNIFF Team</maintainer>
-  <license>MIT</license>
+  <license>AGPL-3.0-only</license>
 
   <buildtool_depend>ament_python</buildtool_depend>
   <depend>rclpy</depend>

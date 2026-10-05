@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="adam.lamecki04@gmail.com">root</maintainer>
-  <license>TODO: License declaration</license>
+  <license>AGPL-3.0-only</license>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

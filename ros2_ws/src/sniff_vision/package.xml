@@ -4,7 +4,7 @@
   <version>0.1.0</version>
   <description>SNIFF vision node - OAK-D Lite YOLO detection</description>
   <maintainer email="sniff@todo.todo">sniff</maintainer>
-  <license>MIT</license>
+  <license>AGPL-3.0-only</license>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
   <depend>vision_msgs</depend>
