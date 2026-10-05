@@ -497,18 +497,30 @@ Zapewnia to poprawną kolejność startu wszystkich zależnych komponentów.
 
 ---
 
-## Third-Party Licenses
+## Licencja
 
-This project uses components from:
-* **[m-explore-ros2](https://github.com/robo-friends/m-explore-ros2)** (package `explore_lite`)  
-  Licensed under the **BSD 3-Clause License**.  
-  Original author: Jiri Horner; ROS 2 port by robo-friends.  
-  See the full license notice at: https://github.com/robo-friends/m-explore-ros2/blob/main/LICENSE
+Kod własny projektu SNIFF (`ros2_ws/src/*` z wyjątkiem `sllidar_ros2`, `apps/`,
+`tools/`, `docker/`) jest udostępniony na licencji **GNU AGPL-3.0** (plik `LICENSE`).
+Powód: repozytorium zawiera model YOLOv5n (Ultralytics, AGPL-3.0) oraz materiały
+pochodne od firmware Waveshare (GPL-3.0).
 
-* **[gazebo_models](https://github.com/osrf/gazebo_models)** (simulation models)  
-  Provided by Open Source Robotics Foundation (OSRF).  
-  Licensed under **Creative Commons Attribution 3.0 (CC-BY 3.0)**.  
-  See: https://github.com/osrf/gazebo_models
+### Oprogramowanie i dane zewnętrzne
+
+| Komponent | Licencja | Uwagi |
+|---|---|---|
+| YOLOv5n (Ultralytics), `yolov5n.blob` | AGPL-3.0 | Wagi wytrenowane na COCO, skompilowane do formatu OAK-D |
+| Zbiór COCO (etykiety klas) | CC BY 4.0 | |
+| Firmware ESP32 Waveshare (`ugv_base_general`) | GPL-3.0 | `firmware/`: backupy i patch; źródła: github.com/waveshareteam/ugv_base_general |
+| `sllidar_ros2` (Slamtec / RoboPeak) | BSD-2-Clause | Skopiowane do repo razem z SDK, licencja (`ros2_ws/src/sllidar_ros2/LICENSE`) i nagłówki zachowane |
+| [m-explore-ros2](https://github.com/robo-friends/m-explore-ros2) (`explore_lite`) | BSD-3-Clause | Autor oryginału: Jiri Horner, port na ROS 2: robo-friends. [Pełna licencja](https://github.com/robo-friends/m-explore-ros2/blob/main/LICENSE) |
+| [gazebo_models](https://github.com/osrf/gazebo_models) (modele symulacji) | CC-BY 3.0 | Open Source Robotics Foundation (OSRF); tylko obraz laptopowy, pobierane przy budowaniu |
+| slam_toolbox | LGPL | Instalowany z apt, bez modyfikacji |
+| ROS 2 Humble, Nav2, rviz2, rqt, vision_msgs, cv_bridge, Gazebo ROS | Apache-2.0 / BSD | Instalowane z apt w obrazie Docker |
+| rosbridge_suite, web_video_server, twist_mux, robot_state_publisher, xacro | BSD / Apache-2.0 | Instalowane z apt |
+| DepthAI 2.24 | MIT | Instalowany przez pip |
+| Dashboard (`apps/web_dashboard`) | AGPL-3.0 (kod własny) | Czysty HTML/CSS/JS, bez zewnętrznych bibliotek |
+
+Pełne teksty licencji zależności znajdują się w ich repozytoriach źródłowych.
 
 # Autorzy
 
