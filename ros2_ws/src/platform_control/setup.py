@@ -17,7 +17,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='root',
-    maintainer_email='adam.lamecki04@gmail.com',
+    maintainer_email='root@todo.todo',
     description='Paczka do testowania platformy',
     license='TODO: License declaration',
     extras_require={
