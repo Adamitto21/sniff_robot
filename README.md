@@ -505,6 +505,11 @@ This project uses components from:
   Original author: Jiri Horner; ROS 2 port by robo-friends.  
   See the full license notice at: https://github.com/robo-friends/m-explore-ros2/blob/main/LICENSE
 
+* **[gazebo_models](https://github.com/osrf/gazebo_models)** (simulation models)  
+  Provided by Open Source Robotics Foundation (OSRF).  
+  Licensed under **Creative Commons Attribution 3.0 (CC-BY 3.0)**.  
+  See: https://github.com/osrf/gazebo_models
+
 # Autorzy
 
 - Grzegorz Budzyński
