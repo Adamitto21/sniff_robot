@@ -49,6 +49,8 @@ RUN mkdir -p /deps_ws/src && \
     cd /deps_ws && \
     . /opt/ros/humble/setup.sh && \
     colcon build --packages-up-to explore_lite && \
+    cp /deps_ws/src/m-explore-ros2/LICENSE /deps_ws/install/explore_lite/share/explore_lite/LICENSE 2>/dev/null || \
+    cp /deps_ws/src/m-explore-ros2/LICENSE /deps_ws/install/LICENSE && \
     rm -rf /deps_ws/build /deps_ws/log /deps_ws/src
 
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
