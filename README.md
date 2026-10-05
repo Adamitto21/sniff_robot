@@ -497,6 +497,14 @@ Zapewnia to poprawną kolejność startu wszystkich zależnych komponentów.
 
 ---
 
+## Third-Party Licenses
+
+This project uses components from:
+* **[m-explore-ros2](https://github.com/robo-friends/m-explore-ros2)** (package `explore_lite`)  
+  Licensed under the **BSD 3-Clause License**.  
+  Original author: Jiri Horner; ROS 2 port by robo-friends.  
+  See the full license notice at: https://github.com/robo-friends/m-explore-ros2/blob/main/LICENSE
+
 # Autorzy
 
 - Grzegorz Budzyński
